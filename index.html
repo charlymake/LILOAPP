@@ -753,6 +753,18 @@ async function recordSale(method,cashReceived,discountAmount=0,payDetails=null){
   S.products=await db.products.filter(p=>p.active===1).toArray();
 }
 
+function _liloLockPayButtons(){document.querySelectorAll('[data-action="confirm-sale"],[data-action="confirmar-cobrar-mesa"]').forEach(b=>{b.disabled=true;b.style.opacity='.6';});}
+function _liloUnlockPayButtons(){document.querySelectorAll('[data-action="confirm-sale"],[data-action="confirmar-cobrar-mesa"]').forEach(b=>{b.disabled=false;b.style.opacity='';});}
+function _liloNeedCorte(){
+  _liloOverlay('lilo-need-corte',`<div style="background:var(--surface);border-radius:16px;padding:24px;max-width:360px;width:100%;text-align:center;border:1px solid var(--border);">
+    <div style="font-size:36px;">🔒</div>
+    <div style="font-size:18px;font-weight:700;color:var(--t1);margin-top:6px;">Primero abre el corte</div>
+    <div style="font-size:14px;color:var(--t2);margin-top:8px;line-height:1.45;">Para poder cobrar necesitas abrir el corte de hoy con el fondo de caja inicial.</div>
+    <div style="display:flex;gap:8px;margin-top:18px;">
+      <button onclick="_liloOverlayClose('lilo-need-corte')" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid var(--border);background:transparent;color:var(--t1);font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;">Volver</button>
+      <button onclick="_liloOverlayClose('lilo-need-corte');navigateTo('abrir-corte')" style="flex:1;padding:12px;border-radius:12px;border:none;background:var(--li);color:#1A1310;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;">Abrir corte</button>
+    </div></div>`);
+}
 async function openShift(fondoCaja=0){
   const id=await db.shifts.add({employee_id:S.user.id,employee_name:S.user.name,start_time:Date.now(),end_time:null,status:'open',fondo_caja:fondoCaja});
   S.shift=await db.shifts.get(id);
@@ -3286,6 +3298,7 @@ async function handleClick(e){
       S.cart=[];await navigateTo('pos');break;
     case 'open-checkout':
       if(S.cart.length===0)return;
+      if(!S.shift){_liloNeedCorte();return;}
       S.modal='checkout';S.selectedPay='';S.cashInput='';S.splitPay=false;S.pay2='';S.pay1Amount='';
       await fullRender();break;
     case 'select-pay':
@@ -3301,6 +3314,9 @@ async function handleClick(e){
       S.splitPay=!S.splitPay;S.pay2='';S.pay1Amount='';S.cashInput='';
       await fullRender();break;
     case 'confirm-sale':{
+      if(S._saving||!S.cart.length)return;
+      S._saving=true;_liloLockPayButtons();
+      try{
       if(!S.selectedPay)return;
       const subtotal=S.cart.reduce((s,i)=>s+i.price*i.qty,0);
       const discAmt=calcDiscount(subtotal);
@@ -3313,7 +3329,7 @@ async function handleClick(e){
         employee:S.user?.name||'',
         method:'',cashReceived:null,change:null,payDetails:null
       };
-      if(!S.shift)await openShift(0);
+      if(!S.shift){S.modal=null;_liloNeedCorte();return;}
       if(S.splitPay&&S.pay2){
         // Pago dividido
         const p1Amt=parseFloat(S.pay1Amount||0)||0;
@@ -3336,6 +3352,7 @@ async function handleClick(e){
       S.modal='receipt';
       await navigateTo('pos');
       break;
+      }finally{S._saving=false;_liloUnlockPayButtons();}
     }
     case 'print-ticket':
       if(S.receiptData)printTicket(S.receiptData);
@@ -3583,6 +3600,7 @@ async function handleClick(e){
     case 'cobrar-mesa':{
       const m=S.mesasAbiertas.find(x=>x.id==id)||S.mesaActiva;
       if(!m)return;
+      if(!S.shift){_liloNeedCorte();return;}
       S.mesaActiva={...m};
       S.selectedPay='';S.cashInput='';
       render(renderShell(renderMesaDetalle())+renderCobrarMesaModal());
@@ -3605,12 +3623,17 @@ async function handleClick(e){
       S.mesaPay2='';S.mesaPay1Amount='';S.mesaCashInput='';
       {const m=S.mesaActiva;render(renderShell(m?renderMesaDetalle():renderMesas())+renderCobrarMesaModal());bindEvents();}break;
     case 'confirmar-cobrar-mesa':{
+      if(S._saving)return;
+      S._saving=true;_liloLockPayButtons();
+      try{
       if(!S.selectedPay||!S.mesaActiva)return;
+      try{const fresh=await db.mesas.get(S.mesaActiva.id);
+        if(!fresh||fresh.status!=='abierta'){alert('Esta mesa ya fue cobrada o eliminada en otro dispositivo.');S.mesaActiva=null;S.modal=null;await navigateTo('mesas');return;}}catch(_){}
       const m=S.mesaActiva;
       const mesaTotal=(m.items||[]).reduce((s,i)=>s+i.price*i.qty,0);
       const prevCart=S.cart;
       S.cart=m.items.map(i=>({...i}));
-      if(!S.shift)await openShift(0);
+      if(!S.shift){S.cart=prevCart;S.modal=null;_liloNeedCorte();return;}
       let mesaMethod,mesaCashIn=null,mesaChange=null,mesaPayDetails=null;
       if(S.mesaSplitPay&&S.mesaPay2){
         const p1Amt=parseFloat(S.mesaPay1Amount||0)||0;
@@ -3632,6 +3655,7 @@ async function handleClick(e){
       S.cart=prevCart;
       S.modal='receipt';
       await navigateTo('mesas');break;
+      }finally{S._saving=false;_liloUnlockPayButtons();}
     }
     /* ── END MESAS ── */
     case 'apply-custom-discount':{
