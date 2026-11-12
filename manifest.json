@@ -1,0 +1,26 @@
+{
+  "name": "LILO - Barra de Cafe",
+  "short_name": "LILO",
+  "description": "Punto de venta LILO",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F4EEE8",
+  "theme_color": "#E8B84B",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "scope": "./",
+  "id": "./"
+}
