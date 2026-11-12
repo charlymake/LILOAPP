@@ -42,10 +42,11 @@
   --font:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
   --serif:'Fraunces',Georgia,serif;
   --sidebar:220px; --topbar:56px; --btmnav:64px;
+  --btn-bg:#2A1F1A; --btn-fg:#F0E8E4;
 }
 @media(prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg:#171210; --surface:#221A16; --s2:#2D2420; --s3:#3A2E28;
+    --bg:#171210; --surface:#221A16; --s2:#2D2420; --s3:#3A2E28; --sb-bg:#100C0A; --btn-bg:#E8B84B; --btn-fg:#1A1310;
     --border:#4A3C34; --t1:#F0E8E4; --t2:#B8A49C; --t3:#7A6560;
     --aa-m:#3D0A1E; --cr-m:#3D1A08; --li-m:#3D2E00;
     --ok-bg:#1B3D1D; --warn-bg:#3D2D00; --danger-bg:#3D1414;
@@ -53,7 +54,7 @@
   }
 }
 :root[data-theme="dark"]{
-  --bg:#171210; --surface:#221A16; --s2:#2D2420; --s3:#3A2E28;
+  --bg:#171210; --surface:#221A16; --s2:#2D2420; --s3:#3A2E28; --sb-bg:#100C0A; --btn-bg:#E8B84B; --btn-fg:#1A1310;
   --border:#4A3C34; --t1:#F0E8E4; --t2:#B8A49C; --t3:#7A6560;
   --aa-m:#3D0A1E; --cr-m:#3D1A08; --li-m:#3D2E00;
   --ok-bg:#1B3D1D; --warn-bg:#3D2D00; --danger-bg:#3D1414;
@@ -79,7 +80,7 @@ a{color:inherit;text-decoration:none;}
 
 .sidebar{
   width:var(--sidebar);flex-shrink:0;height:100vh;
-  background:var(--t1);color:#F0E8E4;
+  background:var(--sb-bg,#2A1F1A);color:#F0E8E4;border-right:1px solid var(--border);
   display:flex;flex-direction:column;overflow:hidden;z-index:20;
 }
 .sidebar-logo{padding:24px 20px 20px;border-bottom:1px solid rgba(255,255,255,.08);}
@@ -181,7 +182,7 @@ a{color:inherit;text-decoration:none;}
   border:1.5px solid var(--border);color:var(--t2);transition:all var(--tr);
 }
 .brand-tab:hover{border-color:var(--t1);color:var(--t1);}
-.brand-tab.active[data-brand="all"]{background:var(--t1);border-color:var(--t1);color:#F0E8E4;}
+.brand-tab.active[data-brand="all"]{background:var(--btn-bg);border-color:var(--btn-bg);color:var(--btn-fg);}
 .brand-tab.active[data-brand="amor_azucar"]{background:var(--aa);border-color:var(--aa);color:#fff;}
 .brand-tab.active[data-brand="crepa_roll"]{background:var(--cr);border-color:var(--cr);color:#fff;}
 .brand-tab.active[data-brand="lilo"]{background:var(--li);border-color:var(--li);color:#fff;}
@@ -239,7 +240,7 @@ a{color:inherit;text-decoration:none;}
 .cart-total-amount{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;}
 .btn-checkout{
   width:100%;padding:13px;border-radius:var(--rsm);
-  background:var(--t1);color:#F0E8E4;font-size:15px;font-weight:600;
+  background:var(--btn-bg);color:var(--btn-fg);font-size:15px;font-weight:600;
   transition:opacity var(--tr);touch-action:manipulation;
 }
 .btn-checkout:hover{opacity:.88;}
@@ -271,7 +272,7 @@ a{color:inherit;text-decoration:none;}
 .mesa-item-price{font-size:13px;color:var(--t2);min-width:60px;text-align:right;}
 .mesa-detalle-footer{padding:12px 16px 60px;border-top:1px solid var(--border);}
 .mesa-total-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;}
-.btn-cobrar-mesa{width:100%;padding:13px;border-radius:var(--rsm);background:var(--t1);color:#F0E8E4;font-size:15px;font-weight:600;transition:opacity var(--tr);}
+.btn-cobrar-mesa{width:100%;padding:13px;border-radius:var(--rsm);background:var(--btn-bg);color:var(--btn-fg);font-size:15px;font-weight:600;transition:opacity var(--tr);}
 .btn-cobrar-mesa:hover{opacity:.88;}
 .modal-mesa-nombres{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:8px 0 16px;}
 .btn-mesa-nombre{padding:12px 20px;border-radius:var(--rsm);border:2px solid var(--border);font-size:15px;font-weight:600;background:var(--s2);transition:all .15s;}
@@ -282,7 +283,7 @@ a{color:inherit;text-decoration:none;}
 /* Cart FAB mobile */
 .cart-fab{
   display:none;position:fixed;bottom:72px;right:16px;z-index:50;
-  background:var(--t1);color:#F0E8E4;border-radius:50px;
+  background:var(--btn-bg);color:var(--btn-fg);border-radius:50px;
   padding:13px 20px;font-size:14px;font-weight:600;
   box-shadow:var(--shlg);align-items:center;gap:8px;
   animation:pop-in .18s ease;touch-action:manipulation;
@@ -424,7 +425,7 @@ a{color:inherit;text-decoration:none;}
 .pay-btn{padding:14px 8px;border-radius:var(--rsm);border:2px solid var(--border);text-align:center;font-size:12px;font-weight:600;color:var(--t2);transition:all var(--tr);touch-action:manipulation;}
 .pay-btn .pi{font-size:22px;display:block;margin-bottom:5px;}
 .pay-btn:hover{border-color:var(--li);}
-.pay-btn.selected{border-color:var(--t1);background:var(--t1);color:#F0E8E4;}
+.pay-btn.selected{border-color:var(--btn-bg);background:var(--btn-bg);color:var(--btn-fg);}
 .cash-section{margin-bottom:14px;}
 .cash-label{font-size:12px;font-weight:500;color:var(--t2);margin-bottom:6px;}
 .cash-input{width:100%;padding:12px 14px;border-radius:var(--rsm);border:1.5px solid var(--border);background:var(--s2);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;transition:border-color var(--tr);}
@@ -440,11 +441,11 @@ a{color:inherit;text-decoration:none;}
 .form-select{width:100%;padding:10px 12px;border-radius:var(--rsm);border:1.5px solid var(--border);background:var(--s2);font-size:14px;}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 .modal-actions{display:flex;gap:8px;margin-top:18px;}
-.btn-primary{flex:1;padding:12px;border-radius:var(--rsm);background:var(--t1);color:#F0E8E4;font-size:14px;font-weight:600;transition:opacity var(--tr);}
+.btn-primary{flex:1;padding:12px;border-radius:var(--rsm);background:var(--btn-bg);color:var(--btn-fg);font-size:14px;font-weight:600;transition:opacity var(--tr);}
 .btn-primary:hover{opacity:.88;}
 .btn-secondary{padding:12px 18px;border-radius:var(--rsm);border:1.5px solid var(--border);font-size:14px;font-weight:500;color:var(--t2);transition:background var(--tr);}
 .btn-secondary:hover{background:var(--s2);}
-.btn-main{padding:10px 18px;border-radius:var(--rsm);background:var(--t1);color:#F0E8E4;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;transition:opacity var(--tr);}
+.btn-main{padding:10px 18px;border-radius:var(--rsm);background:var(--btn-bg);color:var(--btn-fg);font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px;transition:opacity var(--tr);}
 .btn-main:hover{opacity:.85;}
 
 /* Shift close */
@@ -2853,37 +2854,53 @@ window._liloVerMetodo=async function(method){
 };
 
 /* ── Ver detalle de categoría ── */
-window._liloVerCategoria=function(brand){
+window._liloVerCategoria=function(brand,sortBy){
   const d=S.dashData;
   if(!d)return;
+  if(sortBy)S.catSort=sortBy;
+  const mode=S.catSort||'money';
   const bv=BRANDS[brand]||{};
-  const prods=d.topProducts.filter(p=>p.brand===brand).sort((a,b)=>b.qty-a.qty);
+  const col=bv.hex||'var(--li)';
+  const prods=d.topProducts.filter(p=>p.brand===brand)
+    .sort((a,b)=>mode==='qty'?(b.qty-a.qty)||(b.total-a.total):(b.total-a.total)||(b.qty-a.qty));
   const catTotal=d.brandTotals[brand]||0;
-  const maxQty=prods.length?Math.max(...prods.map(p=>p.qty)):1;
-  const rows=prods.map(p=>`
-    <div style="margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px;">
-        <span style="font-size:13px;font-weight:600;">${esc(p.name)}</span>
-        <span style="font-size:12px;color:#666;">${p.qty} uds · <strong>${fmt(p.total)}</strong></span>
-      </div>
-      <div style="height:8px;background:#eee;border-radius:4px;overflow:hidden;">
-        <div style="height:100%;width:${Math.round(p.qty/maxQty*100)}%;background:${bv.hex};border-radius:4px;transition:width .3s;"></div>
-      </div>
-    </div>`).join('');
-  _liloOverlay('lilo-cat-detail',`
-    <div style="background:var(--surface,#fff);border-radius:16px;padding:0;max-width:380px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);max-height:88vh;overflow-y:auto;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid #f0f0f0;position:sticky;top:0;background:var(--surface,#fff);border-radius:16px 16px 0 0;">
-        <div>
-          <div style="font-size:18px;font-weight:700;color:${bv.hex};">${bv.icon} ${bv.name}</div>
-          <div style="font-size:13px;color:#999;margin-top:2px;">Total del período: <strong style="color:${bv.hex};">${fmt(catTotal)}</strong></div>
+  const sumTotal=prods.reduce((t,p)=>t+(p.total||0),0)||1;
+  const pieces=prods.reduce((t,p)=>t+(p.qty||0),0);
+  const maxV=prods.length?Math.max(...prods.map(p=>mode==='qty'?p.qty:p.total),1):1;
+  const medal=['🥇','🥈','🥉'];
+  const rows=prods.map((p,i)=>{
+    const top=i<3;
+    const v=mode==='qty'?p.qty:p.total;
+    const pct=Math.round((p.total||0)/sumTotal*100);
+    return`
+    <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);">
+      <div style="width:26px;text-align:center;font-size:${top?20:13}px;font-weight:700;color:var(--t3);flex-shrink:0;">${top?medal[i]:i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+          <span style="font-size:14px;font-weight:${top?700:500};color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(p.name)}</span>
+          <span style="font-size:15px;font-weight:700;color:var(--t1);white-space:nowrap;">${mode==='qty'?p.qty+' pz':fmt(p.total)}</span>
         </div>
-        <button onclick="_liloOverlayClose('lilo-cat-detail')" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #ddd;background:transparent;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+          <div style="flex:1;height:8px;background:var(--s3,rgba(128,128,128,.2));border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${Math.max(2,Math.round(v/maxV*100))}%;background:${col};opacity:${top?1:.6};border-radius:4px;"></div>
+          </div>
+          <span style="font-size:11px;color:var(--t2);white-space:nowrap;min-width:78px;text-align:right;">${mode==='qty'?fmt(p.total):p.qty+' pz'} · ${pct}%</span>
+        </div>
       </div>
-      <div style="padding:18px 18px;">
-        ${prods.length===0
-          ?`<div style="text-align:center;padding:24px;color:#999;">Sin ventas en este período</div>`
-          :`<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#999;margin-bottom:14px;">Productos vendidos</div>${rows}`}
+    </div>`;}).join('');
+  const stat=(lbl,val,c)=>`<div style="flex:1;background:var(--s2);border-radius:12px;padding:10px 6px;text-align:center;"><div style="font-size:11px;color:var(--t2);">${lbl}</div><div style="font-size:21px;font-weight:800;color:${c||'var(--t1)'};margin-top:2px;">${val}</div></div>`;
+  const tab=(m,lbl)=>`<button onclick="window._liloVerCategoria('${brand}','${m}')" style="border-radius:20px;padding:6px 14px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;border:1.5px solid ${mode===m?col:'var(--border)'};background:${mode===m?col:'transparent'};color:${mode===m?'#fff':'var(--t2)'};">${lbl}</button>`;
+  _liloOverlay('lilo-cat-detail',`
+    <div style="background:var(--surface,#fff);border-radius:16px;padding:0;max-width:400px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.25);max-height:88vh;overflow-y:auto;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface,#fff);border-radius:16px 16px 0 0;z-index:1;">
+        <div style="font-size:18px;font-weight:700;color:${col};">${bv.icon||''} ${bv.name||''}</div>
+        <button onclick="_liloOverlayClose('lilo-cat-detail')" style="width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);background:transparent;color:var(--t1);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
+      ${prods.length===0
+        ?`<div style="text-align:center;padding:32px 18px;color:var(--t3);">Sin ventas en este período</div>`
+        :`<div style="display:flex;gap:8px;padding:14px 18px 4px;">${stat('Vendido',fmt(catTotal),col)}${stat('Piezas',pieces)}${stat('Productos',prods.length)}</div>
+      <div style="display:flex;gap:6px;padding:10px 18px 2px;">${tab('money','💰 Por dinero')}${tab('qty','📦 Por piezas')}</div>
+      <div style="padding:4px 18px 16px;">${rows}</div>`}
     </div>`);
 };
 
