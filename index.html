@@ -610,6 +610,7 @@ const db={
   shifts:    new FsCollection('shifts'),
   discounts: new FsCollection('discounts'),
   mesas:     new FsCollection('mesas'),
+  gastos:    new FsCollection('gastos'),
   sale_items:{add:async()=>{},where:()=>({equals:()=>({delete:async()=>{},toArray:async()=>[]}),anyOf:()=>({toArray:async()=>[]})})},
   stock_log: {add:async()=>{}}
 };
@@ -906,6 +907,7 @@ function renderSidebar(){
     {v:'products',  icon:'🛍️',label:'Menú'},
     {v:'discounts', icon:'🏷️',label:'Descuentos'},
     {v:'users',     icon:'👥',label:'Usuarios'},
+    {v:'gastos',    icon:'🧾',label:'Gastos'},
     {v:'history',   icon:'📋',label:'Historial'}
   ];
   const bg=avatarBg(u);
@@ -936,7 +938,7 @@ function renderSidebar(){
 
 function renderTopbar(){
   const isAdmin=S.user?.role==='owner';
-  const titles={pos:'Barra',dashboard:'Dashboard',inventory:'Inventario',products:'Menú',discounts:'Descuentos',users:'Usuarios',history:'Historial','shift-close':'Cerrar Turno','abrir-corte':'Abrir Corte',mesas:'Mesas Abiertas','mesa-detail':'Detalle de Mesa'};
+  const titles={pos:'Barra',dashboard:'Dashboard',inventory:'Inventario',products:'Menú',discounts:'Descuentos',users:'Usuarios',gastos:'Gastos',history:'Historial','shift-close':'Cerrar Turno','abrir-corte':'Abrir Corte',mesas:'Mesas Abiertas','mesa-detail':'Detalle de Mesa'};
   return`
   <div class="topbar">
     ${isAdmin?`<button class="hamburger-btn" onclick="window._liloToggleSidebar()" aria-label="Menú">☰</button>`:''}
@@ -1090,6 +1092,7 @@ function renderPOS(){
       <div class="brand-tabs">
         ${[{b:'all',label:'Todos',icon:'🍽️'},...Object.entries(BRANDS).map(([b,v])=>({b,label:v.name,icon:v.icon}))].map(({b,label,icon})=>`
           <button class="brand-tab${S.brandFilter===b?' active':''}" data-action="filter-brand" data-brand="${b}">${icon} ${label}</button>`).join('')}
+        <button onclick="window._liloGasto()" style="margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px;border:2px solid #E8682A;color:#E8682A;background:rgba(232,104,42,.1);border-radius:50px;padding:6px 14px;font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;white-space:nowrap;">Registrar gasto</button>
       </div>
       <div style="padding:8px 12px 0;flex-shrink:0;">
         <input class="form-input" type="search" placeholder="🔍 Buscar producto…" value="${esc(S.searchQuery)}" data-action="search-products" style="width:100%;font-size:13px;padding:8px 12px;">
@@ -1685,6 +1688,108 @@ function renderRecentSales(d){
         </div>`;}).join('')+(d.sales.length>10?`<div style="text-align:center;padding:10px 0 4px;"><button onclick="window._liloRecentAll()" style="background:none;border:none;color:var(--li);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;padding:6px 12px;">${S.recentAll?'Ver menos ▴':`Ver todas las ventas (${d.sales.length}) ▾`}</button></div>`:'');
 }
 window._liloRecentAll=function(){S.recentAll=!S.recentAll;const el=document.getElementById('lilo-recent');if(el&&S.dashData)el.innerHTML=renderRecentSales(S.dashData);};
+
+
+/* ══════════════════════════════════════════════
+   GASTOS
+══════════════════════════════════════════════ */
+const GASTO_COL='#E8682A';
+function _liloTodayStart(){const n=new Date();return new Date(n.getFullYear(),n.getMonth(),n.getDate()).getTime();}
+window._liloGasto=async function(){
+  let hoy=[];
+  try{hoy=(await db.gastos.toArray()).filter(g=>g.timestamp>=_liloTodayStart()).sort((a,b)=>b.timestamp-a.timestamp);}catch(e){console.warn('gastos',e);}
+  const tot=hoy.reduce((t,g)=>t+(g.monto||0),0);
+  _liloOverlay('lilo-gasto',`
+    <div style="background:var(--surface);border-radius:16px;max-width:400px;width:100%;border:1px solid var(--border);box-shadow:0 12px 40px rgba(0,0,0,.35);max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border);">
+        <div style="font-size:18px;font-weight:700;color:${GASTO_COL};">Registrar gasto</div>
+        <button onclick="_liloOverlayClose('lilo-gasto')" style="width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);background:transparent;color:var(--t1);font-size:16px;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:18px;">
+        <div style="font-size:13px;color:var(--t2);margin-bottom:6px;">¿Cuánto fue?</div>
+        <div style="display:flex;align-items:center;background:var(--s2);border:2px solid ${GASTO_COL};border-radius:12px;padding:6px 14px;">
+          <span style="font-size:28px;font-weight:800;color:var(--t2);">$</span>
+          <input id="gasto-monto" type="number" inputmode="decimal" min="0" step="0.5" placeholder="0.00" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--t1);font-size:30px;font-weight:800;font-family:var(--font);padding:4px 8px;">
+        </div>
+        <div style="font-size:13px;color:var(--t2);margin:14px 0 6px;">¿En qué se gastó?</div>
+        <textarea id="gasto-nota" rows="2" placeholder="Ej. 2 bolsas de hielo" style="width:100%;box-sizing:border-box;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:15px;color:var(--t1);font-family:var(--font);resize:none;outline:none;"></textarea>
+        <div id="gasto-err" style="color:var(--danger);font-size:13px;margin-top:8px;display:none;"></div>
+        <button id="gasto-ok" onclick="window._liloGuardarGasto()" style="width:100%;margin-top:14px;background:${GASTO_COL};color:#fff;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:700;font-family:var(--font);cursor:pointer;">Guardar gasto</button>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.07em;color:var(--t3);margin:18px 0 8px;">GASTOS DE HOY · ${fmt(tot)}</div>
+        ${hoy.length===0?`<div style="font-size:13px;color:var(--t3);padding:6px 0;">Todavía no hay gastos hoy</div>`:hoy.map(g=>`
+          <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;color:var(--t1);">
+            <span><span style="color:var(--t3);font-size:12px;">${fmtTime(g.timestamp)}</span>&nbsp; ${esc(g.nota||'—')}</span><b style="white-space:nowrap;">${fmt(g.monto||0)}</b></div>`).join('')}
+      </div>
+    </div>`);
+  setTimeout(()=>document.getElementById('gasto-monto')?.focus(),50);
+};
+window._liloGuardarGasto=async function(){
+  const monto=parseFloat(document.getElementById('gasto-monto')?.value||'0')||0;
+  const nota=(document.getElementById('gasto-nota')?.value||'').trim();
+  const err=document.getElementById('gasto-err');
+  const showErr=t=>{if(err){err.textContent=t;err.style.display='block';}};
+  if(monto<=0)return showErr('Escribe cuánto fue el gasto.');
+  if(!nota)return showErr('Escribe en qué se gastó.');
+  const btn=document.getElementById('gasto-ok');if(btn){btn.disabled=true;btn.textContent='Guardando…';}
+  try{
+    await db.gastos.add({monto,nota,timestamp:Date.now(),employee_id:S.user?.id||null,employee_name:S.user?.name||'',shift_id:S.shift?.id||null});
+    await window._liloGasto();
+  }catch(e){
+    console.error('Error guardando gasto',e);
+    if(btn){btn.disabled=false;btn.textContent='Guardar gasto';}
+    showErr('No se pudo guardar el gasto. Revisa la conexión e intenta de nuevo.');
+  }
+};
+window._liloGastosRange=async function(r){S.gastosRange=r;S.gastosDate='';await navigateTo('gastos');};
+window._liloGastosDate=async function(){S.gastosDate=document.getElementById('gastos-date')?.value||'';if(S.gastosDate)S.gastosRange='day';await navigateTo('gastos');};
+window._liloBorrarGasto=async function(id){
+  _liloOverlay('lilo-gasto-del',`<div style="background:var(--surface);border-radius:16px;padding:22px;max-width:340px;width:100%;text-align:center;">
+    <div style="font-size:30px;">🗑</div><div style="font-size:16px;font-weight:700;color:var(--t1);margin-top:6px;">¿Eliminar este gasto?</div>
+    <div style="font-size:13px;color:var(--t2);margin-top:6px;">No se puede deshacer.</div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button onclick="_liloOverlayClose('lilo-gasto-del')" style="flex:1;padding:11px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:var(--t1);font-weight:600;font-family:var(--font);cursor:pointer;">No</button>
+      <button onclick="(async()=>{try{await db.gastos.delete('${id}');}catch(e){console.error(e);}_liloOverlayClose('lilo-gasto-del');await navigateTo('gastos');})()" style="flex:1;padding:11px;border-radius:10px;border:none;background:var(--danger);color:#fff;font-weight:700;font-family:var(--font);cursor:pointer;">Sí, eliminar</button>
+    </div></div>`);
+};
+async function renderGastos(){
+  const r=S.gastosRange||'today';
+  const n=new Date();const t0=_liloTodayStart();
+  let from=t0,to=Date.now()+86400000;
+  if(r==='week')from=t0-6*86400000;
+  else if(r==='month')from=t0-29*86400000;
+  else if(r==='day'&&S.gastosDate){from=new Date(S.gastosDate+'T00:00:00').getTime();to=from+86400000;}
+  let all=[];try{all=await db.gastos.toArray();}catch(e){console.warn(e);}
+  const list=all.filter(g=>g.timestamp>=from&&g.timestamp<to).sort((a,b)=>b.timestamp-a.timestamp);
+  const tot=list.reduce((t,g)=>t+(g.monto||0),0);
+  const groups={};list.forEach(g=>{const k=_liloDayKey(g.timestamp);(groups[k]=groups[k]||[]).push(g);});
+  const tab=(v,l)=>`<button onclick="window._liloGastosRange('${v}')" style="border:none;padding:7px 12px;font-size:13px;font-family:var(--font);cursor:pointer;border-radius:8px;background:${r===v?'var(--s3)':'transparent'};color:${r===v?'var(--t1)':'var(--t2)'};font-weight:${r===v?600:400};">${l}</button>`;
+  const todayStr=_liloDayKey(Date.now());
+  const head=`<div class="section-header" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div class="section-title" style="flex:1;">Gastos</div>
+    <div style="display:flex;gap:2px;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:3px;">${tab('today','Hoy')}${tab('week','7 días')}${tab('month','30 días')}</div>
+    <input type="date" id="gastos-date" value="${S.gastosDate||''}" max="${todayStr}" onchange="window._liloGastosDate()" style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;background:var(--surface);color:var(--t1);font-family:var(--font);">
+    <button onclick="window._liloGasto()" style="border:2px solid ${GASTO_COL};color:${GASTO_COL};background:rgba(232,104,42,.1);border-radius:50px;padding:6px 14px;font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;">Registrar gasto</button>
+  </div>`;
+  const summary=`<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+    <div style="flex:1;min-width:180px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;"><div style="font-size:12px;color:var(--t2);">Total gastado</div><div style="font-size:28px;font-weight:800;color:${GASTO_COL};">${fmt(tot)}</div></div>
+    <div style="flex:1;min-width:140px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;"><div style="font-size:12px;color:var(--t2);">Gastos</div><div style="font-size:28px;font-weight:800;color:var(--t1);">${list.length}</div></div>
+    <div style="flex:1;min-width:140px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;"><div style="font-size:12px;color:var(--t2);">Promedio por gasto</div><div style="font-size:28px;font-weight:800;color:var(--t1);">${fmt(list.length?tot/list.length:0)}</div></div>
+  </div>`;
+  const body=list.length===0?`<div class="empty-state" style="margin-top:24px;"><div class="empty-icon">🧾</div><div class="empty-text">Sin gastos en este período</div></div>`
+    :Object.keys(groups).sort().reverse().map(k=>{
+      const g=groups[k];const st=g.reduce((t,x)=>t+(x.monto||0),0);
+      const dn=new Date(k+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+      return`<div class="recent-card" style="margin-bottom:12px;padding:14px 16px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;"><span style="font-size:15px;font-weight:700;color:var(--t1);text-transform:capitalize;">${dn}${k===todayStr?' · Hoy':''}</span><span style="font-size:16px;font-weight:800;color:${GASTO_COL};">${fmt(st)}</span></div>
+        ${g.map(x=>`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--border);">
+          <span style="font-size:13px;color:var(--t3);width:44px;flex-shrink:0;">${fmtTime(x.timestamp)}</span>
+          <span style="flex:1;font-size:14px;color:var(--t1);">${esc(x.nota||'—')}<span style="font-size:12px;color:var(--t2);"> · ${esc(x.employee_name||'—')}</span></span>
+          <span style="font-size:15px;font-weight:700;color:var(--t1);white-space:nowrap;">${fmt(x.monto||0)}</span>
+          <button onclick="window._liloBorrarGasto('${x.id}')" style="font-size:12px;color:var(--danger);border:1px solid var(--danger);background:transparent;border-radius:6px;padding:4px 9px;font-family:var(--font);cursor:pointer;">Eliminar</button>
+        </div>`).join('')}
+      </div>`;}).join('');
+  return`<div class="view">${head}${summary}${body}</div>`;
+}
 
 /* ── Tiempo en mesas ── */
 function _liloDur(ms){const m=Math.max(0,Math.round(ms/60000));return m<60?`${m} min`:`${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')} min`;}
@@ -3792,6 +3897,7 @@ async function getViewHtml(){
     case 'discounts':    return await renderDiscounts();
     case 'users':        return renderUsers();
     case 'history':      return await renderHistory();
+    case 'gastos':       return await renderGastos();
     case 'shift-close':  return await renderShiftClose();
     case 'abrir-corte':  return renderAbrirCorte();
     case 'mesas':        return renderMesas();
