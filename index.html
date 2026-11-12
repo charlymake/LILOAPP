@@ -862,8 +862,11 @@ async function loadDashboardData(){
   });
   const top=Object.values(pm).sort((a,b)=>b.total-a.total); // sin límite para que el detalle de categoría muestre todos
   // rawSales includes cancelled (for visual display); allSales excludes them (for totals/charts)
-  const recentRaw=rawSales.slice().sort((a,b)=>b.timestamp-a.timestamp).slice(0,20);
-  return{total,brandTotals:bt,payTotals:pt,chart:{labels,aa,cr,li},topProducts:top,salesCount:allSales.length,cancelledCount:rawSales.length-allSales.length,sales:recentRaw};
+  const recentRaw=rawSales.slice().sort((a,b)=>b.timestamp-a.timestamp);
+  let mesasAll=[];try{mesasAll=await db.mesas.toArray();}catch(_){}
+  const mesasClosed=mesasAll.filter(m=>m.status==='cerrada'&&m.abierta_at&&m.cerrada_at&&m.cerrada_at>=from&&m.cerrada_at<=to&&m.cerrada_at>m.abierta_at);
+  const mesasOpen=mesasAll.filter(m=>m.status==='abierta'&&m.abierta_at);
+    return{mesas:{closed:mesasClosed,open:mesasOpen},total,brandTotals:bt,payTotals:pt,chart:{labels,aa,cr,li},topProducts:top,salesCount:allSales.length,cancelledCount:rawSales.length-allSales.length,sales:recentRaw};
 }
 
 /* ══════════════════════════════════════════════
@@ -1654,12 +1657,21 @@ function renderDashboard(){
     ${d.sales.length>0?`
     <div class="recent-card">
       <div class="recent-header">Ventas recientes</div>
-      ${d.sales.map(s=>{
+      <div id="lilo-recent">${renderRecentSales(d)}</div>
+    </div>`:''}
+    ${renderMesasStats(d)}
+  </div>`;
+}
+
+function renderRecentSales(d){
+  const list=S.recentAll?d.sales:d.sales.slice(0,10);
+  const multiDay=S.dateRange!=='today'&&S.dateRange!=='day'&&!(S.dateRange==='custom'&&S.customFrom&&S.customFrom===S.customTo);
+  return list.map(s=>{
         const isCancelled=s.status==='cancelled';
         let bt={};try{bt=JSON.parse(s.brand_totals||'{}');}catch(_){}
         return`
         <div class="sale-row" onclick="window._liloVerVenta('${s.id}')" style="${isCancelled?'opacity:.5;':''}cursor:pointer;">
-          <span class="sale-time" style="${isCancelled?'text-decoration:line-through;':''}">${fmtTime(s.timestamp)}</span>
+          <span class="sale-time" style="${isCancelled?'text-decoration:line-through;':''}">${multiDay?fmtDateShort(s.timestamp)+' · ':''}${fmtTime(s.timestamp)}</span>
           <span class="sale-emp" style="${isCancelled?'text-decoration:line-through;color:var(--t3);':''}">${esc(s.employee_name||'—')}</span>
           ${isCancelled
             ?`<span style="flex:1;"><span style="background:var(--danger);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;letter-spacing:.05em;display:inline-block;">CANCELADA</span></span>`
@@ -1668,10 +1680,74 @@ function renderDashboard(){
           <span class="pay-badge">${PAY[s.payment_method]?.icon||''}</span>
           <span class="sale-amount" style="${isCancelled?'text-decoration:line-through;color:var(--t3);':''}">${fmt(s.total)}</span>
           ${S.user?.role==='owner'&&!isCancelled?`<button onclick="event.stopPropagation();window._liloDashDelete('${s.id}')" style="margin-left:4px;padding:3px 7px;font-size:11px;border-radius:var(--rxs);border:1px solid var(--danger);color:var(--danger);background:transparent;cursor:pointer;flex-shrink:0;" title="Cancelar venta">✕</button>`:''}
-        </div>`;}).join('')}
-    </div>`:''}
-  </div>`;
+        </div>`;}).join('')+(d.sales.length>10?`<div style="text-align:center;padding:10px 0 4px;"><button onclick="window._liloRecentAll()" style="background:none;border:none;color:var(--li);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;padding:6px 12px;">${S.recentAll?'Ver menos ▴':`Ver todas las ventas (${d.sales.length}) ▾`}</button></div>`:'');
 }
+window._liloRecentAll=function(){S.recentAll=!S.recentAll;const el=document.getElementById('lilo-recent');if(el&&S.dashData)el.innerHTML=renderRecentSales(S.dashData);};
+
+/* ── Tiempo en mesas ── */
+function _liloDur(ms){const m=Math.max(0,Math.round(ms/60000));return m<60?`${m} min`:`${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')} min`;}
+function _liloDurCol(ms){const m=ms/60000;return m<30?'#43A047':m<60?'#E8B84B':m<120?'#E8682A':'#D81B60';}
+function _liloMesaTotal(m){const it=m.items||[];return it.length?it.reduce((t,i)=>t+(i.price||0)*(i.qty||0),0):(m.total||0);}
+function renderMesasStats(d){
+  const md=d&&d.mesas;if(!md)return'';
+  const closed=md.closed||[],open=(md.open||[]).slice().sort((a,b)=>a.abierta_at-b.abierta_at);
+  const now=Date.now();
+  const card=inner=>`<div class="recent-card" style="margin-top:16px;padding:16px;">${inner}</div>`;
+  const title=`<div style="font-size:16px;font-weight:700;color:var(--t1);">🪑 Tiempo en mesas</div>`;
+  let openHtml='';
+  if(open.length===1){
+    const m=open[0];
+    openHtml=`<span style="font-size:12px;font-weight:600;color:#E8B84B;background:#E8B84B22;border-radius:12px;padding:4px 10px;">🟢 1 mesa abierta ahora · ${esc(m.nombre||'Mesa')} lleva <span data-open-since="${m.abierta_at}">${_liloDur(now-m.abierta_at)}</span></span>`;
+  } else if(open.length>1){
+    openHtml=`<div style="margin-top:12px;background:#E8B84B14;border:1px solid #E8B84B55;border-radius:14px;padding:12px;">
+      <div style="font-size:13px;font-weight:700;color:#E8B84B;margin-bottom:10px;">🟢 ${open.length} mesas abiertas ahora <span style="font-weight:400;color:var(--t2);">· de la que lleva más tiempo a la que lleva menos</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;">
+      ${open.map(m=>{const ms=now-m.abierta_at,c=_liloDurCol(ms);return`<div data-open-card="${m.abierta_at}" style="background:var(--s2);border-radius:12px;padding:10px 12px;border-left:6px solid ${c};">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;"><span style="font-size:14px;font-weight:700;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(m.nombre||'Mesa')}</span><span style="font-size:12px;color:var(--t2);">${fmt(_liloMesaTotal(m))}</span></div>
+        <div data-open-since="${m.abierta_at}" style="font-size:20px;font-weight:800;color:${c};margin-top:2px;">${_liloDur(ms)}</div>
+        <div style="font-size:11px;color:var(--t2);">abierta desde las ${fmtTime(m.abierta_at)}</div></div>`;}).join('')}
+      </div></div>`;
+  }
+  const head=`<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">${title}${open.length===1?openHtml:''}</div>${open.length>1?openHtml:''}`;
+  if(closed.length===0)return card(head+`<div style="text-align:center;padding:22px 0 8px;color:var(--t3);font-size:13px;">Sin mesas cobradas en este período</div>`);
+  const durs=closed.map(m=>({m,ms:m.cerrada_at-m.abierta_at}));
+  const avg=durs.reduce((t,x)=>t+x.ms,0)/durs.length;
+  const fast=durs.reduce((a,b)=>b.ms<a.ms?b:a),slow=durs.reduce((a,b)=>b.ms>a.ms?b:a);
+  const avgTicket=closed.reduce((t,m)=>t+_liloMesaTotal(m),0)/closed.length;
+  const avgMin=Math.round(avg/60000);
+  const avgBig=avgMin<60?`${avgMin}<span style="font-size:22px;"> min</span>`:`${Math.floor(avgMin/60)}<span style="font-size:22px;"> h </span>${String(avgMin%60).padStart(2,'0')}<span style="font-size:22px;"> min</span>`;
+  const B=[['Menos de 30 min',0,30,'#43A047'],['30 a 60 min',30,60,'#E8B84B'],['1 a 2 horas',60,120,'#E8682A'],['Más de 2 horas',120,1e9,'#D81B60']]
+    .map(([l,a,b,c])=>({l,c,n:durs.filter(x=>x.ms/60000>=a&&x.ms/60000<b).length}));
+  const mx=Math.max(...B.map(b=>b.n),1);
+  const bars=B.map(b=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
+    <span style="width:118px;font-size:13px;color:var(--t1);flex-shrink:0;">${b.l}</span>
+    <div style="flex:1;height:22px;background:var(--s3);border-radius:6px;overflow:hidden;"><div style="width:${b.n?Math.max(3,Math.round(b.n/mx*100)):0}%;height:100%;background:${b.c};border-radius:6px;"></div></div>
+    <span style="width:74px;text-align:right;font-size:13px;font-weight:700;color:var(--t1);">${b.n} mesa${b.n!==1?'s':''}</span>
+    <span style="width:38px;text-align:right;font-size:12px;color:var(--t2);">${Math.round(b.n/durs.length*100)}%</span></div>`).join('');
+  const stat=(ic,l,v,sub,c)=>`<div style="flex:1;min-width:140px;background:var(--s2);border-radius:12px;padding:12px;"><div style="font-size:12px;color:var(--t2);">${ic} ${l}</div><div style="font-size:21px;font-weight:800;color:${c||'var(--t1)'};margin-top:4px;">${v}</div><div style="font-size:11px;color:var(--t2);margin-top:2px;">${sub}</div></div>`;
+  return card(`${head}
+    <div style="display:flex;gap:14px;margin-top:14px;flex-wrap:wrap;">
+      <div style="flex:0 0 220px;background:var(--s2);border-radius:14px;padding:18px;text-align:center;display:flex;flex-direction:column;justify-content:center;">
+        <div style="font-size:13px;color:var(--t2);">Tiempo promedio</div>
+        <div style="font-size:50px;font-weight:800;color:#E8B84B;line-height:1.1;margin-top:4px;">${avgBig}</div>
+        <div style="font-size:13px;color:var(--t2);margin-top:6px;">de ${closed.length} mesa${closed.length!==1?'s':''} cobrada${closed.length!==1?'s':''}</div>
+      </div>
+      <div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          ${stat('⚡','Más rápida',_liloDur(fast.ms),`${esc(fast.m.nombre||'Mesa')} · ${fmtTime(fast.m.abierta_at)}`,'#43A047')}
+          ${stat('🐢','Más larga',_liloDur(slow.ms),`${esc(slow.m.nombre||'Mesa')} · ${fmtTime(slow.m.abierta_at)}`,'#D81B60')}
+          ${stat('💰','Consumo promedio',fmt(avgTicket),'por mesa')}
+        </div>
+        <div style="background:var(--s2);border-radius:12px;padding:14px 14px 6px;"><div style="font-size:12px;color:var(--t2);margin-bottom:10px;">¿Cuánto tiempo se quedan?</div>${bars}</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--t3);margin-top:10px;">Solo cuenta mesas cobradas en el período seleccionado.</div>`);
+}
+setInterval(()=>{
+  const now=Date.now();
+  document.querySelectorAll('[data-open-since]').forEach(el=>{const t=+el.dataset.openSince;el.textContent=_liloDur(now-t);if(el.style.color)el.style.color=_liloDurCol(now-t);});
+  document.querySelectorAll('[data-open-card]').forEach(el=>{el.style.borderLeftColor=_liloDurCol(now-(+el.dataset.openCard));});
+},60000);
 
 /* ══════════════════════════════════════════════
    INVENTORY
