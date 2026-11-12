@@ -1904,7 +1904,8 @@ window._liloAskDeleteDay=async function(k,evt){
   _liloOverlay('lilo-delday',`
     <div style="background:var(--surface);border-radius:16px;padding:22px;max-width:360px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.35);">
       <div style="font-size:34px;">🗑</div>
-      <div style="font-size:17px;font-weight:700;color:var(--t1);margin-top:6px;text-transform:capitalize;">${dayName}</div>
+      <div style="font-size:17px;font-weight:700;color:var(--t1);margin-top:6px;">¿Estás seguro de eliminar las ventas de este día?</div>
+      <div style="font-size:14px;font-weight:600;color:var(--t2);margin-top:4px;text-transform:capitalize;">${dayName}</div>
       <div style="font-size:14px;color:var(--t2);margin-top:8px;line-height:1.45;">Se borrarán <strong style="color:var(--t1);">${sales.length} venta${sales.length!==1?'s':''}</strong> por <strong style="color:var(--t1);">${fmt(total)}</strong>.<br>Esto <strong style="color:var(--danger);">no se puede deshacer</strong>.</div>
       <div style="display:flex;gap:8px;margin-top:18px;">
         <button onclick="_liloOverlayClose('lilo-delday')" style="flex:1;padding:11px;border-radius:var(--rsm);border:1.5px solid var(--border);background:transparent;color:var(--t1);font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;">No, volver</button>
@@ -1990,23 +1991,22 @@ async function renderHistoryDays(){
               <div class="breakdown-amount">${fmt(bt[b]||0)}</div>
             </div>`).join('')}
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-          ${Object.entries(pt).map(([m,v])=>{const on=payF===m;return`<button onclick="window._liloHistPay('day-${k}','${m}',event)" style="background:${on?'var(--li)':'var(--surface)'};color:${on?'#fff':'inherit'};border:1.5px solid ${on?'var(--li)':'var(--border)'};border-radius:var(--rxs);padding:6px 10px;font-size:12px;font-family:var(--font);cursor:pointer;">${PAY[m]?.icon||''} ${PAY[m]?.name||m}: <strong>${fmt(v)}</strong>${on?' ✕':''}</button>`;}).join('')}
-        </div>
+        <div style="margin-bottom:12px;">${_liloPayPanel('day-'+k,sales,pt,payF,null)}</div>
         ${isAdmin?`<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button onclick="window._liloAskDeleteDay('${k}',event)" style="background:transparent;border:1.5px solid var(--danger);color:var(--danger);border-radius:var(--rxs);padding:6px 12px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">🗑 Eliminar ventas de este día</button></div>`:''}
         <div style="border-top:1px solid var(--border);padding-top:10px;">
-          <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;">Ventas del día${payF?` · ${PAY[payF]?.name||payF}`:''}</div>
-          ${list.length===0?`<div style="text-align:center;padding:14px 0;color:var(--t3);font-size:12px;">Sin ventas con ${PAY[payF]?.name||payF} este día</div>`:''}
-          ${list.map(sv=>{
+          ${list.length===0?`<div style="text-align:center;padding:14px 0;color:var(--t3);font-size:13px;">Sin ventas con ${PAY[payF]?.name||payF} este día</div>`:''}
+          ${(S.histShowAll===k?list:list.slice(0,10)).map(sv=>{
             const isCan=sv.status==='cancelled';
-            const payStr=sv.payment_method==='mixed'?'🔀 Mixto':`${PAY[sv.payment_method]?.icon||''} ${PAY[sv.payment_method]?.name||sv.payment_method||''}`;
+            const pm=sv.payment_method;const pcol=PAY_COLOR[pm]||'#B8A49C';
             return`
-            <div onclick="window._liloVerVenta('${sv.id}')" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;cursor:pointer;${isCan?'opacity:.55;':''}">
-              <span style="color:var(--t3);min-width:42px;${isCan?'text-decoration:line-through;':''}">${fmtTime(sv.timestamp)}</span>
-              <span style="flex:1;color:var(--t2);">${isCan?`<span style="background:var(--danger);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:4px;">✕</span>`:''}${payStr} · ${esc(sv.employee_name||'—')}</span>
-              <span style="font-weight:600;font-variant-numeric:tabular-nums;${isCan?'text-decoration:line-through;color:var(--t3);':''}">${fmt(sv.total)}</span>
-              ${isAdmin&&!isCan?`<button class="btn-icon danger" style="font-size:11px;padding:3px 7px;" onclick="event.stopPropagation();window._liloAskDelete('${sv.id}')">Cancelar</button>`:''}
+            <div onclick="window._liloVerVenta('${sv.id}')" style="display:flex;align-items:center;gap:12px;padding:9px 2px;border-bottom:1px solid var(--border);cursor:pointer;${isCan?'opacity:.55;':''}">
+              <span style="font-size:13px;color:var(--t3);width:44px;flex-shrink:0;${isCan?'text-decoration:line-through;':''}">${fmtTime(sv.timestamp)}</span>
+              <span style="width:30px;height:30px;border-radius:8px;background:${pcol}22;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${pm==='mixed'?'🔀':(PAY[pm]?.icon||'•')}</span>
+              <span style="flex:1;font-size:14px;color:var(--t1);">${isCan?`<span style="background:var(--danger);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:6px;">CANCELADA</span>`:''}${esc(sv.employee_name||'—')}${pm==='mixed'?' <span style="font-size:11px;color:var(--t2);">· Mixto</span>':''}</span>
+              <span style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--t1);${isCan?'text-decoration:line-through;color:var(--t3);':''}">${fmt(sv.total)}</span>
+              ${isAdmin&&!isCan?`<button style="font-size:12px;color:var(--t2);border:1px solid var(--border);background:transparent;border-radius:6px;padding:4px 9px;font-family:var(--font);cursor:pointer;" onclick="event.stopPropagation();window._liloAskDelete('${sv.id}')">Cancelar</button>`:''}
             </div>`;}).join('')}
+          ${list.length>10?`<div style="text-align:center;padding:10px 0 2px;"><button onclick="window._liloHistShowAll('${k}',event)" style="background:none;border:none;color:var(--li);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;">${S.histShowAll===k?'Ver menos ▴':`Ver las ${list.length-10} restantes ▾`}</button></div>`:''}
         </div>
       </div>`:''}
     </div>`;
@@ -2103,9 +2103,7 @@ async function renderHistory(){
               <div class="breakdown-amount">${fmt(bt[b])}</div>
             </div>`).join('')}
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${isAdmin&&allShiftSales.length>0?12:0}px;">
-          ${Object.entries(pt).map(([m,v])=>{const on=payF===m;return`<button onclick="window._liloHistPay('${sh.id}','${m}',event)" style="background:${on?'var(--li)':'var(--surface)'};color:${on?'#fff':'inherit'};border:1.5px solid ${on?'var(--li)':'var(--border)'};border-radius:var(--rxs);padding:6px 10px;font-size:12px;font-family:var(--font);cursor:pointer;">${PAY[m]?.icon||''} ${PAY[m]?.name||m}: <strong>${fmt(v)}</strong>${on?' ✕':''}</button>`;}).join('')}
-        </div>
+        <div style="margin-bottom:12px;">${_liloPayPanel(sh.id,sales,pt,payF,sh.fondo_caja||0)}</div>
         ${isAdmin&&allShiftSales.length>0?`
         <div style="border-top:1px solid var(--border);padding-top:10px;">
           <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;">Ventas del turno${cancelledSales.length>0?` <span style="color:var(--danger);font-weight:400;">(${cancelledSales.length} cancelada${cancelledSales.length!==1?'s':''})</span>`:''}</div>
@@ -3059,10 +3057,41 @@ function _liloSaleHasMethod(s,method){
   if(s.payment_details){try{const pd=JSON.parse(s.payment_details);return (pd[method]||0)>0;}catch(_){return false;}}
   return false;
 }
+window._liloHistShowAll=async function(k,evt){if(evt){evt.preventDefault();evt.stopPropagation();}S.histShowAll=S.histShowAll===k?null:k;await navigateTo('history');};
+function _liloPayPanel(key,sales,pt,payF,fondo){
+  const tot=Object.values(pt).reduce((a,b)=>a+(b||0),0);
+  const cnt=m=>sales.filter(x=>_liloSaleHasMethod(x,m)).length;
+  const card=(m,ic,name,v,n,col)=>{
+    const on=(m==='all'&&!payF)||payF===m;const empty=n===0&&m!=='all';
+    const pct=tot?Math.round(v/tot*100):0;
+    return`<button onclick="window._liloHistPay('${key}','${m}',event)" style="flex:1;min-width:150px;position:relative;text-align:left;font-family:var(--font);cursor:pointer;background:${on?col+'22':'var(--s2)'};border:2px solid ${on?col:'var(--border)'};border-radius:14px;padding:12px 14px;color:var(--t1);opacity:${empty?.45:1};">
+      ${on?`<span style="position:absolute;top:-10px;right:10px;background:${col};color:#1A1310;font-size:11px;font-weight:800;border-radius:10px;padding:1px 8px;">✓ Viendo</span>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:22px;">${ic}</span>${m==='all'?'':`<span style="font-size:30px;font-weight:800;line-height:1;color:${col};">${pct}%</span>`}</div>
+      <div style="font-size:13px;color:var(--t2);margin-top:6px;">${name}</div>
+      <div style="font-size:21px;font-weight:800;color:${m==='all'?'var(--t1)':col};">${fmt(v)}</div>
+      <div style="font-size:11px;color:var(--t2);">${n} venta${n!==1?'s':''}</div>
+      ${m==='all'?'':`<div style="height:5px;background:var(--s3);border-radius:3px;margin-top:8px;overflow:hidden;"><div style="width:${pct}%;height:100%;background:${col};"></div></div>`}
+    </button>`;};
+  const ms=['cash','card','transfer'];
+  const cards=card('all','📋','Todos',tot,sales.length,'#B8A49C')+ms.map(m=>card(m,PAY[m].icon,PAY[m].name,pt[m]||0,cnt(m),PAY_COLOR[m])).join('');
+  const bar=tot?`<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin:14px 0 4px;gap:2px;">${ms.filter(m=>pt[m]>0).map(m=>`<div style="width:${pt[m]/tot*100}%;background:${PAY_COLOR[m]};"></div>`).join('')}</div>
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:14px;color:var(--t2);">${ms.filter(m=>pt[m]>0).map(m=>`<span>${PAY[m].icon} ${PAY[m].name} <b style="font-size:20px;color:${PAY_COLOR[m]};">${Math.round(pt[m]/tot*100)}%</b></span>`).join('')}</div>`:'';
+  let summary='';
+  if(payF){
+    const col=PAY_COLOR[payF];const n=cnt(payF);
+    summary=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px;">
+      <div style="font-size:13px;font-weight:700;color:${col};">${PAY[payF].icon} ${n} venta${n!==1?'s':''} ${payF==='cash'?'en':'con'} ${PAY[payF].name.toLowerCase()} · ${fmt(pt[payF]||0)}</div>
+      ${payF==='cash'?`<div style="font-size:12px;color:var(--t2);">💰 Debe haber en caja: <b style="color:var(--t1);">${fondo!=null?fmt((pt.cash||0)+fondo):fmt(pt.cash||0)+'</b> + fondo<b>'}</b>${fondo!=null&&fondo>0?` <span style="color:var(--t3);">(incluye fondo ${fmt(fondo)})</span>`:''}</div>`:''}
+    </div>`;
+  }
+  return`<div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--t3);margin-bottom:12px;">¿CÓMO PAGARON? <span style="font-weight:400;letter-spacing:0;">· toca uno para ver solo esas ventas</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:4px;">${cards}</div>${bar}${summary}`;
+}
 window._liloHistPay=async function(shiftId,method,evt){
   if(evt){evt.preventDefault();evt.stopPropagation();}
   const cur=S.histPayFilter;
-  S.histPayFilter=(cur&&cur.shift===shiftId&&cur.method===method)?null:{shift:shiftId,method};
+  if(method==='all'){S.histPayFilter=null;S.histShowAll=null;await navigateTo('history');return;}
+  S.histPayFilter=(cur&&cur.shift===shiftId&&cur.method===method)?null:{shift:shiftId,method};S.histShowAll=null;
   await navigateTo('history');
 };
 window._liloToggleShift=async function(shiftId,evt){
