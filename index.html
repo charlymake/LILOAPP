@@ -1635,7 +1635,7 @@ function renderDashboard(){
     <div class="charts-grid">
       <div class="chart-card">
         <div class="chart-title">Ventas por marca ${(S.dateRange==='today'||(S.dateRange==='custom'&&S.customFrom&&S.customFrom===S.customTo))?'(por hora)':'(por día)'} ${S.dateRange==='custom'&&S.customFrom?`· ${S.customFrom}${S.customTo&&S.customTo!==S.customFrom?' → '+S.customTo:''}`:''}</div>
-        <div class="chart-wrap">${svgBarChart(d)}</div>
+        <div class="chart-wrap">${svgBarChart(d.chart)}</div>
       </div>
       <div class="chart-card" style="display:flex;flex-direction:column;">
         <div class="chart-title">Método de pago</div>
