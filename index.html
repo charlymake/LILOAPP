@@ -1816,6 +1816,35 @@ function _liloHistModeToggle(){
   return`<div style="display:flex;border:1px solid var(--border);border-radius:var(--rxs);overflow:hidden;">${b('day','📅 Por día')}${b('shift','🕐 Por turno')}</div>`;
 }
 window._liloHistMode=async function(m){S.historyMode=m;S.histPayFilter=null;await navigateTo('history');};
+window._liloAskDeleteDay=async function(k,evt){
+  if(evt){evt.preventDefault();evt.stopPropagation();}
+  if(S.user?.role!=='owner')return;
+  const from=new Date(k+'T00:00:00').getTime(),to=from+86400000;
+  const sales=await db.sales.where('timestamp').between(from,to,true,false).toArray();
+  const total=sales.filter(x=>x.status!=='cancelled').reduce((t,x)=>t+(x.total||0),0);
+  const dayName=new Date(k+'T12:00:00').toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
+  _liloOverlay('lilo-delday',`
+    <div style="background:var(--surface);border-radius:16px;padding:22px;max-width:360px;width:100%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.35);">
+      <div style="font-size:34px;">🗑</div>
+      <div style="font-size:17px;font-weight:700;color:var(--t1);margin-top:6px;text-transform:capitalize;">${dayName}</div>
+      <div style="font-size:14px;color:var(--t2);margin-top:8px;line-height:1.45;">Se borrarán <strong style="color:var(--t1);">${sales.length} venta${sales.length!==1?'s':''}</strong> por <strong style="color:var(--t1);">${fmt(total)}</strong>.<br>Esto <strong style="color:var(--danger);">no se puede deshacer</strong>.</div>
+      <div style="display:flex;gap:8px;margin-top:18px;">
+        <button onclick="_liloOverlayClose('lilo-delday')" style="flex:1;padding:11px;border-radius:var(--rsm);border:1.5px solid var(--border);background:transparent;color:var(--t1);font-size:14px;font-weight:600;font-family:var(--font);cursor:pointer;">No, volver</button>
+        <button id="lilo-delday-ok" onclick="window._liloDoDeleteDay('${k}')" style="flex:1;padding:11px;border-radius:var(--rsm);border:none;background:var(--danger);color:#fff;font-size:14px;font-weight:700;font-family:var(--font);cursor:pointer;">Sí, eliminar</button>
+      </div>
+    </div>`);
+};
+window._liloDoDeleteDay=async function(k){
+  if(S.user?.role!=='owner')return;
+  const btn=document.getElementById('lilo-delday-ok');if(btn){btn.disabled=true;btn.textContent='Eliminando…';}
+  const from=new Date(k+'T00:00:00').getTime(),to=from+86400000;
+  const sales=await db.sales.where('timestamp').between(from,to,true,false).toArray();
+  for(const x of sales){try{await db.sales.delete(x.id);}catch(e){console.warn('No se pudo borrar venta',x.id,e);}}
+  _liloOverlayClose('lilo-delday');
+  S.expandedDay=null;S.histPayFilter=null;S.dashData=null;
+  await navigateTo('history');
+};
+
 window._liloToggleDay=async function(k,evt){
   if(evt){evt.preventDefault();evt.stopPropagation();}
   S.expandedDay=(S.expandedDay===k)?null:k;S.pendingDeleteSaleId=null;
@@ -1886,6 +1915,7 @@ async function renderHistoryDays(){
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
           ${Object.entries(pt).map(([m,v])=>{const on=payF===m;return`<button onclick="window._liloHistPay('day-${k}','${m}',event)" style="background:${on?'var(--li)':'var(--surface)'};color:${on?'#fff':'inherit'};border:1.5px solid ${on?'var(--li)':'var(--border)'};border-radius:var(--rxs);padding:6px 10px;font-size:12px;font-family:var(--font);cursor:pointer;">${PAY[m]?.icon||''} ${PAY[m]?.name||m}: <strong>${fmt(v)}</strong>${on?' ✕':''}</button>`;}).join('')}
         </div>
+        ${isAdmin?`<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button onclick="window._liloAskDeleteDay('${k}',event)" style="background:transparent;border:1.5px solid var(--danger);color:var(--danger);border-radius:var(--rxs);padding:6px 12px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">🗑 Eliminar ventas de este día</button></div>`:''}
         <div style="border-top:1px solid var(--border);padding-top:10px;">
           <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;">Ventas del día${payF?` · ${PAY[payF]?.name||payF}`:''}</div>
           ${list.length===0?`<div style="text-align:center;padding:14px 0;color:var(--t3);font-size:12px;">Sin ventas con ${PAY[payF]?.name||payF} este día</div>`:''}
