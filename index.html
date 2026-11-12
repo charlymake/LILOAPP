@@ -1641,11 +1641,12 @@ function renderDashboard(){
         <div class="chart-title">Método de pago</div>
         <div class="chart-wrap">${svgDonutChart(d.payTotals)}</div>
         <div style="display:flex;flex-direction:column;gap:6px;padding:6px 0 2px;">
-          ${Object.entries(PAY).map(([m,pv])=>d.payTotals[m]>0?`
-          <div onclick="window._liloVerMetodo('${m}')" style="display:flex;align-items:center;justify-content:space-between;padding:8px 11px;background:var(--s2);border-radius:var(--rxs);cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
-            <span style="font-size:12px;font-weight:600;">${pv.icon} ${pv.name}</span>
-            <span style="font-size:13px;font-weight:700;color:var(--li);">${fmt(d.payTotals[m])} <span style="font-size:10px;opacity:.4;">▶</span></span>
-          </div>`:'').join('')}
+          ${(()=>{const tt=Object.keys(PAY).reduce((t,k)=>t+(d.payTotals[k]||0),0);return Object.entries(PAY).map(([m,pv])=>{const v=d.payTotals[m]||0;const pct=tt?Math.round(v/tt*100):0;return`
+          <div onclick="window._liloVerMetodo('${m}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--s2);border-radius:var(--rxs);border-left:6px solid ${PAY_COLOR[m]};cursor:pointer;transition:opacity .15s;${v>0?'':'opacity:.5;'}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${v>0?1:.5}'">
+            <span style="font-size:22px;font-weight:800;min-width:58px;color:${PAY_COLOR[m]};">${pct}%</span>
+            <span style="flex:1;font-size:14px;font-weight:600;color:var(--t1);">${pv.icon} ${pv.name}</span>
+            <span style="font-size:15px;font-weight:700;color:var(--t1);">${fmt(v)} <span style="font-size:10px;opacity:.4;">▶</span></span>
+          </div>`;}).join('');})()}
         </div>
       </div>
     </div>
@@ -3666,38 +3667,31 @@ function svgBarChart(data){
   return`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:210px;display:block;" xmlns="http://www.w3.org/2000/svg">${yLines}${yLbls}${bars}${xLbls}${legend}</svg>`;
 }
 
+const PAY_COLOR={cash:'#43A047',card:'#E8B84B',transfer:'#D81B60'};
 function svgDonutChart(payTotals){
-  const{cash=0,card=0,transfer=0}=payTotals;
-  const total=cash+card+transfer;
-  const W=300,H=200,cx=85,cy=96,R=66,r=43;
-  if(total===0){
-    return`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:210px;display:block;" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${cx}" cy="${cy}" r="${(R+r)/2}" fill="none" stroke="rgba(42,31,26,.08)" stroke-width="${R-r}"/>
-      <text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="11" fill="#B09A94">Sin datos</text>
-      <text x="175" y="60" font-size="10" fill="#B09A94">Efectivo: —</text>
-      <text x="175" y="92" font-size="10" fill="#B09A94">Tarjeta: —</text>
-      <text x="175" y="124" font-size="10" fill="#B09A94">Transferencia: —</text>
-    </svg>`;
-  }
-  const segs=[{val:cash,color:'rgba(46,125,50,.85)',label:'Efectivo'},{val:card,color:'rgba(232,184,75,.85)',label:'Tarjeta'},{val:transfer,color:'rgba(194,24,91,.85)',label:'Transf.'}];
-  let paths='',startA=-Math.PI/2;
-  segs.filter(s=>s.val>0).forEach(seg=>{
-    const a=(seg.val/total)*2*Math.PI;
-    const endA=startA+a;
-    const x1=cx+R*Math.cos(startA),y1=cy+R*Math.sin(startA);
-    const x2=cx+R*Math.cos(endA),y2=cy+R*Math.sin(endA);
-    const ix1=cx+r*Math.cos(startA),iy1=cy+r*Math.sin(startA);
-    const ix2=cx+r*Math.cos(endA),iy2=cy+r*Math.sin(endA);
-    const lg=a>Math.PI?1:0;
-    paths+=`<path d="M${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${lg},1 ${x2.toFixed(2)},${y2.toFixed(2)} L${ix2.toFixed(2)},${iy2.toFixed(2)} A${r},${r} 0 ${lg},0 ${ix1.toFixed(2)},${iy1.toFixed(2)} Z" fill="${seg.color}" stroke="var(--surface)" stroke-width="2"/>`;
-    startA=endA;
+  const keys=['cash','card','transfer'];
+  const total=keys.reduce((t,k)=>t+(payTotals[k]||0),0);
+  const head=`<div style="text-align:center;margin:2px 0 10px;"><div style="font-size:12px;color:var(--t2);">Total cobrado</div><div style="font-size:26px;font-weight:800;color:var(--t1);line-height:1.2;">${fmt(total)}</div></div>`;
+  if(total===0)return head+`<div style="text-align:center;padding:30px 0;color:var(--t3);font-size:14px;">Sin ventas en este período</div>`;
+  const S2=220,c=S2/2,R=104;
+  let paths='',labels='',a0=-Math.PI/2;
+  const segs=keys.filter(k=>(payTotals[k]||0)>0).map(k=>({k,val:payTotals[k]}));
+  segs.forEach(sg=>{
+    const frac=sg.val/total,a=frac*2*Math.PI,a1=a0+a;
+    if(segs.length===1){paths+=`<circle cx="${c}" cy="${c}" r="${R}" fill="${PAY_COLOR[sg.k]}"/>`;}
+    else{
+      const x1=c+R*Math.cos(a0),y1=c+R*Math.sin(a0),x2=c+R*Math.cos(a1),y2=c+R*Math.sin(a1);
+      paths+=`<path d="M${c},${c} L${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${a>Math.PI?1:0},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${PAY_COLOR[sg.k]}" stroke="var(--surface)" stroke-width="3"/>`;
+    }
+    const pct=Math.round(frac*100);
+    if(pct>=6){
+      const mid=a0+a/2,lr=segs.length===1?0:R*0.6;
+      const lx=c+lr*Math.cos(mid),ly=c+lr*Math.sin(mid);
+      labels+=`<text x="${lx.toFixed(1)}" y="${(ly+9).toFixed(1)}" text-anchor="middle" font-size="${pct>=15?28:20}" font-weight="800" fill="#fff" stroke="rgba(0,0,0,.35)" stroke-width="3" paint-order="stroke" style="font-family:var(--font);">${pct}%</text>`;
+    }
+    a0=a1;
   });
-  const totalStr=total>=1000?'$'+(total/1000).toFixed(1)+'k':'$'+total.toFixed(0);
-  const legend=segs.map((s,i)=>{
-    const pct=Math.round(s.val/total*100);
-    return`<g transform="translate(172,${28+i*52})"><rect x="0" y="0" width="10" height="10" fill="${s.color}" rx="2"/><text x="14" y="9" font-size="10" fill="#7A6560">${s.label}</text><text x="14" y="24" font-size="12" fill="#2A1F1A" font-weight="700">$${s.val.toFixed(0)}</text><text x="14" y="37" font-size="9" fill="#B09A94">${pct}%</text></g>`;
-  }).join('');
-  return`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:210px;display:block;" xmlns="http://www.w3.org/2000/svg">${paths}<text x="${cx}" y="${cy-8}" text-anchor="middle" font-size="10" fill="#7A6560">Total</text><text x="${cx}" y="${cy+10}" text-anchor="middle" font-size="15" fill="#2A1F1A" font-weight="700">${totalStr}</text>${legend}</svg>`;
+  return head+`<svg viewBox="0 0 ${S2} ${S2}" style="width:100%;max-width:240px;height:auto;display:block;margin:0 auto;" xmlns="http://www.w3.org/2000/svg">${paths}${labels}</svg>`;
 }
 
 /* ══════════════════════════════════════════════
