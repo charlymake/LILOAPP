@@ -1637,12 +1637,11 @@ function renderDashboard(){
         <div class="chart-title">Ventas por marca ${(S.dateRange==='today'||(S.dateRange==='custom'&&S.customFrom&&S.customFrom===S.customTo))?'(por hora)':'(por día)'} ${S.dateRange==='custom'&&S.customFrom?`· ${S.customFrom}${S.customTo&&S.customTo!==S.customFrom?' → '+S.customTo:''}`:''}</div>
         <div class="chart-wrap">${svgBarChart(d)}</div>
       </div>
-      <div class="chart-card">
+      <div class="chart-card" style="display:flex;flex-direction:column;">
         <div class="chart-title">Método de pago</div>
-        <div class="chart-wrap">${svgDonutChart(d.payTotals)}</div>
-        <div style="display:flex;flex-direction:column;gap:6px;padding:6px 0 2px;">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:4px 0;">
           ${(()=>{const tt=Object.keys(PAY).reduce((t,k)=>t+(d.payTotals[k]||0),0);return Object.entries(PAY).map(([m,pv])=>{const v=d.payTotals[m]||0;const pct=tt?Math.round(v/tt*100):0;return`
-          <div onclick="window._liloVerMetodo('${m}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--s2);border-radius:var(--rxs);border-left:6px solid ${PAY_COLOR[m]};cursor:pointer;transition:opacity .15s;${v>0?'':'opacity:.5;'}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${v>0?1:.5}'">
+          <div onclick="window._liloVerMetodo('${m}')" style="display:flex;align-items:center;gap:12px;padding:14px 14px;min-height:56px;width:100%;box-sizing:border-box;background:var(--s2);border-radius:var(--rxs);border-left:6px solid ${PAY_COLOR[m]};cursor:pointer;transition:opacity .15s;${v>0?'':'opacity:.5;'}" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='${v>0?1:.5}'">
             <span style="font-size:22px;font-weight:800;min-width:58px;color:${PAY_COLOR[m]};">${pct}%</span>
             <span style="flex:1;font-size:14px;font-weight:600;color:var(--t1);">${pv.icon} ${pv.name}</span>
             <span style="font-size:15px;font-weight:700;color:var(--t1);">${fmt(v)} <span style="font-size:10px;opacity:.4;">▶</span></span>
@@ -3691,7 +3690,7 @@ function svgDonutChart(payTotals){
     }
     a0=a1;
   });
-  return head+`<svg viewBox="0 0 ${S2} ${S2}" style="width:100%;max-width:240px;height:auto;display:block;margin:0 auto;" xmlns="http://www.w3.org/2000/svg">${paths}${labels}</svg>`;
+  return head+`<svg viewBox="0 0 ${S2} ${S2}" style="width:100%;max-width:180px;height:auto;display:block;margin:0 auto;" xmlns="http://www.w3.org/2000/svg">${paths}${labels}</svg>`;
 }
 
 /* ══════════════════════════════════════════════
