@@ -1,4 +1,4 @@
-const CACHE = 'lilo-v5';
+const CACHE = 'lilo-v6';
 const STATIC = ['./'];
 
 self.addEventListener('install', e => {
@@ -20,8 +20,9 @@ self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   // Don't cache Firebase or external requests
   if (url.hostname !== location.hostname) return;
+  // Siempre pedir la versión más nueva al servidor (sin caché del navegador)
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, { cache: 'no-store' }).then(r => {
       const clone = r.clone();
       caches.open(CACHE).then(c => c.put(e.request, clone));
       return r;
