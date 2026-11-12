@@ -896,11 +896,11 @@ function renderShell(viewHtml){
 function renderSidebar(){
   const u=S.user;
   const nav=[
-    {v:'pos',       icon:'🏪',label:'Barra de cafe'},
+    {v:'pos',       icon:'🏪',label:'Barra'},
     {v:'mesas',     icon:'🪑',label:'Mesas',badge:()=>S.mesasAbiertas.length||0},
     {v:'dashboard', icon:'📊',label:'Dashboard'},
     {v:'inventory', icon:'📦',label:'Inventario'},
-    {v:'products',  icon:'🛍️',label:'Productos'},
+    {v:'products',  icon:'🛍️',label:'Menú'},
     {v:'discounts', icon:'🏷️',label:'Descuentos'},
     {v:'users',     icon:'👥',label:'Usuarios'},
     {v:'history',   icon:'📋',label:'Historial'}
@@ -933,7 +933,7 @@ function renderSidebar(){
 
 function renderTopbar(){
   const isAdmin=S.user?.role==='owner';
-  const titles={pos:'Barra de cafe',dashboard:'Dashboard',inventory:'Inventario',products:'Productos',discounts:'Descuentos',users:'Usuarios',history:'Historial','shift-close':'Cerrar Turno','abrir-corte':'Abrir Corte',mesas:'Mesas Abiertas','mesa-detail':'Detalle de Mesa'};
+  const titles={pos:'Barra',dashboard:'Dashboard',inventory:'Inventario',products:'Menú',discounts:'Descuentos',users:'Usuarios',history:'Historial','shift-close':'Cerrar Turno','abrir-corte':'Abrir Corte',mesas:'Mesas Abiertas','mesa-detail':'Detalle de Mesa'};
   return`
   <div class="topbar">
     ${isAdmin?`<button class="hamburger-btn" onclick="window._liloToggleSidebar()" aria-label="Menú">☰</button>`:''}
@@ -1650,18 +1650,7 @@ function renderDashboard(){
         </div>
       </div>
     </div>
-    ${d.topProducts.length>0?`
-    <div class="recent-card" style="margin-bottom:16px;">
-      <div class="recent-header">Top Productos</div>
-      <div style="overflow-x:auto;">
-        <table class="data-table">
-          <thead><tr><th>Producto</th><th>Marca</th><th>Uds.</th><th>Total</th></tr></thead>
-          <tbody>
-            ${d.topProducts.slice(0,8).map(p=>{const bv=BRANDS[p.brand]||{};return`<tr><td>${esc(p.name)}</td><td><span class="brand-pill ${p.brand==='amor_azucar'?'pill-aa':p.brand==='crepa_roll'?'pill-cr':'pill-li'}">${bv.icon||''} ${bv.short||p.brand}</span></td><td>${p.qty}</td><td style="font-weight:600;">${fmt(p.total)}</td></tr>`;}).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>`:''}
+    ${d.topProducts.length>0?`<div id="lilo-top" class="recent-card" style="margin-bottom:16px;padding:16px;">${renderTopProducts(d)}</div>`:''}
     ${d.sales.length>0?`
     <div class="recent-card">
       <div class="recent-header">Ventas recientes</div>
@@ -2851,6 +2840,53 @@ window._liloVerMetodo=async function(method){
         ${matchingSales.length===0?`<div style="text-align:center;padding:28px 0;color:var(--t3);font-size:13px;">Sin ventas en este período</div>`:rows}
       </div>
     </div>`);
+};
+
+/* ── Top Productos (ranking) ── */
+function renderTopProducts(d){
+  if(!d)return'';
+  const brand=S.topBrand||'all',mode=S.topSort||'money';
+  const tot=d.total||1;
+  let list=d.topProducts.filter(p=>brand==='all'||p.brand===brand)
+    .slice().sort((a,b)=>mode==='qty'?(b.qty-a.qty)||(b.total-a.total):(b.total-a.total)||(b.qty-a.qty));
+  const full=list.length;
+  if(!S.topAll)list=list.slice(0,8);
+  const maxV=list.length?Math.max(...list.map(p=>mode==='qty'?p.qty:p.total),1):1;
+  const medal=['🥇','🥈','🥉'];
+  const chip=(on,lbl,act,col)=>`<button onclick="${act}" style="border-radius:20px;padding:6px 13px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;white-space:nowrap;border:1.5px solid ${on?(col||'var(--li)'):'var(--border)'};background:${on?(col||'var(--li)'):'transparent'};color:${on?((!col||col==='#E8B84B')?'#1A1310':'#fff'):'var(--t2)'};">${lbl}</button>`;
+  const brandChips=chip(brand==='all','Todas',"window._liloTop('brand','all')")+Object.entries(BRANDS).map(([k,bv])=>chip(brand===k,`${bv.icon} ${bv.name}`,`window._liloTop('brand','${k}')`,bv.hex)).join('');
+  const sortChips=chip(mode==='money','💰 Por dinero',"window._liloTop('sort','money')")+chip(mode==='qty','📦 Por piezas',"window._liloTop('sort','qty')");
+  const rows=list.map((p,i)=>{
+    const bv=BRANDS[p.brand]||{};const col=bv.hex||'var(--li)';const top=i<3;
+    const v=mode==='qty'?p.qty:p.total;
+    return`<div onclick="window._liloVerCategoria('${p.brand}')" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;margin-bottom:4px;cursor:pointer;background:${top?'var(--s2)':'transparent'};">
+      <div style="width:28px;text-align:center;font-size:${top?22:14}px;font-weight:700;color:var(--t3);flex-shrink:0;">${top?medal[i]:i+1}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:15px;font-weight:${top?700:500};color:var(--t1);">${esc(p.name)}</span>
+          <span style="font-size:11px;font-weight:600;color:${col};background:${col}22;border-radius:10px;padding:2px 8px;white-space:nowrap;">${bv.icon||''} ${bv.name||p.brand}</span>
+        </div>
+        <div style="height:7px;background:var(--s3);border-radius:4px;margin-top:6px;overflow:hidden;"><div style="width:${Math.max(2,Math.round(v/maxV*100))}%;height:100%;background:${col};opacity:${top?1:.65};border-radius:4px;"></div></div>
+      </div>
+      <div style="text-align:right;min-width:92px;flex-shrink:0;">
+        <div style="font-size:16px;font-weight:800;color:var(--t1);">${mode==='qty'?p.qty+' pz':fmt(p.total)}</div>
+        <div style="font-size:11px;color:var(--t2);">${mode==='qty'?fmt(p.total):p.qty+' pz'} · ${Math.round((p.total||0)/tot*100)}%</div>
+      </div>
+    </div>`;}).join('');
+  return`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:700;color:var(--t1);">🏆 Top Productos</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">${brandChips}</div>
+      <div style="display:flex;gap:6px;">${sortChips}</div>
+    </div>
+    ${list.length?rows:`<div style="text-align:center;padding:24px;color:var(--t3);">Sin ventas de esta marca en el período</div>`}
+    ${full>8?`<div style="text-align:center;margin-top:6px;"><button onclick="window._liloTop('all')" style="background:none;border:none;color:var(--li);font-size:13px;font-weight:600;font-family:var(--font);cursor:pointer;padding:6px 12px;">${S.topAll?'Ver menos ▴':`Ver todos los productos (${full}) ▾`}</button></div>`:''}`;
+}
+window._liloTop=function(kind,val){
+  if(kind==='brand')S.topBrand=val;
+  else if(kind==='sort')S.topSort=val;
+  else if(kind==='all')S.topAll=!S.topAll;
+  const el=document.getElementById('lilo-top');
+  if(el&&S.dashData)el.innerHTML=renderTopProducts(S.dashData);
 };
 
 /* ── Ver detalle de categoría ── */
