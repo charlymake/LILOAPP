@@ -893,7 +893,26 @@ async function loadDashboardData(){
 function render(html){
   document.getElementById('app').innerHTML=html;
   bindEvents();
+  _liloSaveCart();
 }
+/* ── Guardar la orden en curso por si Android cierra la app ── */
+function _liloCartKey(uid){return 'lilo_cart_'+uid;}
+function _liloSaveCart(){
+  try{
+    if(!S.user||S._saving)return;
+    const k=_liloCartKey(S.user.id);
+    if(S.cart&&S.cart.length)localStorage.setItem(k,JSON.stringify({cart:S.cart,disc:S.appliedDiscount||null,t:Date.now()}));
+    else localStorage.removeItem(k);
+  }catch(_){}
+}
+function _liloRestoreCart(){
+  try{
+    if(!S.user)return;
+    const v=JSON.parse(localStorage.getItem(_liloCartKey(S.user.id))||'null');
+    if(v&&Array.isArray(v.cart)&&v.cart.length&&Date.now()-(v.t||0)<12*3600000){S.cart=v.cart;S.appliedDiscount=v.disc||null;}
+  }catch(_){}
+}
+function _liloClearCart(){try{if(S.user)localStorage.removeItem(_liloCartKey(S.user.id));}catch(_){}}
 async function fullRender(){
   const v=await getViewHtml();
   const m=S.modal?`<div class="modal-overlay" id="modal-overlay">${renderModal()}</div>`:'';
@@ -2981,7 +3000,20 @@ function _liloCancelConfirmOverlay(saleId,context){
 window._liloDoCancel=async function(saleId,context){
   _liloOverlayClose('lilo-cancel-overlay');
   const sale=await db.sales.get(saleId);
+  if(!sale||sale.status==='cancelled'){if(context==='dashboard'){S.dashData=null;await navigateTo('dashboard');}else{await navigateTo('history');}return;}
   await db.sales.where('id').equals(saleId).modify({status:'cancelled'});
+  // Regresar al inventario las piezas de productos con control de stock
+  try{
+    const items=JSON.parse(sale.items_json||'[]');
+    for(const it of items){
+      if(it.id==null||!(it.qty>0))continue;
+      const prod=await db.products.get(it.id);
+      if(prod&&prod.track_stock&&(prod.stock??0)<9999){
+        await db.products.where('id').equals(it.id).modify(p=>{p.stock=(p.stock||0)+it.qty;});
+      }
+    }
+    S.products=await db.products.filter(p=>p.active===1).toArray();
+  }catch(e){console.warn('No se pudo regresar el stock',e);}
   if(sale?.shift_id){await _liloRecalcShift(sale.shift_id);}
   S.pendingDeleteSaleId=null;
   if(context==='dashboard'){S.dashData=null;await navigateTo('dashboard');}
@@ -3282,13 +3314,13 @@ async function handleClick(e){
     case 'pin-back':
       S.loginUser=null;S.pinBuffer='';render(renderLogin());break;
     case 'switch-user':
-      _liloClearSession();
+      _liloClearSession();_liloClearCart();
       if(window._liloUnsubs)window._liloUnsubs.forEach(u=>u());window._liloUnsubs=[];
       S.user=null;S.loginUser=null;S.pinBuffer='';S.cart=[];
       S.users=await db.users.toArray();
       render(renderLogin());break;
     case 'logout':
-      _liloClearSession();
+      _liloClearSession();_liloClearCart();
       if(window._liloUnsubs)window._liloUnsubs.forEach(u=>u());window._liloUnsubs=[];
       S.user=null;S.shift=null;S.cart=[];S.loginUser=null;S.pinBuffer='';S.appliedDiscount=null;
       S.users=await db.users.toArray();
@@ -3924,7 +3956,7 @@ const LILO_SESSION_MAX=12*3600000; // 12 horas sin usar la app
 function _liloSaveSession(){try{if(S.user)localStorage.setItem(LILO_SESSION_KEY,JSON.stringify({uid:S.user.id,view:S.view,t:Date.now()}));}catch(_){}}
 function _liloClearSession(){try{localStorage.removeItem(LILO_SESSION_KEY);}catch(_){}}
 function _liloReadSession(){try{const v=JSON.parse(localStorage.getItem(LILO_SESSION_KEY)||'null');if(v&&v.uid&&Date.now()-(v.t||0)<LILO_SESSION_MAX)return v;}catch(_){}return null;}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')_liloSaveSession();});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){_liloSaveSession();_liloSaveCart();}});
 window.addEventListener('pagehide',_liloSaveSession);
 
 async function doLogin(user){
@@ -4061,6 +4093,8 @@ async function init(){
   if(su){
     try{
       await doLogin(su);
+      _liloRestoreCart();
+      if(S.cart.length&&S.view==='pos')render(renderShell(renderPOS()));
       const okViews=['pos','mesas','dashboard','inventory','products','discounts','users','gastos','history','shift-close'];
       const adminOnly=['dashboard','inventory','products','discounts','users','gastos','history'];
       if(sess.view&&sess.view!==S.view&&okViews.includes(sess.view)&&(su.role==='owner'||!adminOnly.includes(sess.view))&&!(S.view==='abrir-corte'&&sess.view==='pos'))
