@@ -188,11 +188,11 @@ a{color:inherit;text-decoration:none;}
 .brand-tab.active[data-brand="lilo"]{background:var(--li);border-color:var(--li);color:#fff;}
 
 .product-grid-wrap{flex:1;overflow-y:auto;padding:12px;}
-.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}
+.product-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
 .product-card{
   background:var(--surface);border-radius:var(--rsm);
-  border:1.5px solid var(--border);padding:12px 10px;cursor:pointer;
-  display:flex;flex-direction:column;gap:5px;
+  border:1.5px solid var(--border);padding:14px 12px;cursor:pointer;min-height:96px;
+  display:flex;flex-direction:column;gap:6px;
   transition:border-color var(--tr),box-shadow var(--tr),transform var(--tr);
   user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
   position:relative;overflow:hidden;
@@ -204,9 +204,9 @@ a{color:inherit;text-decoration:none;}
 .product-card.cr{--bc:var(--cr);}
 .product-card.li{--bc:var(--li);}
 .product-card.out{opacity:.45;pointer-events:none;}
-.p-name{font-size:12px;font-weight:500;line-height:1.3;color:var(--t1);}
-.p-price{font-size:15px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums;}
-.p-stock{font-size:10px;color:var(--t3);}
+.p-name{font-size:16px;font-weight:600;line-height:1.25;color:var(--t1);}
+.p-price{font-size:20px;font-weight:800;margin-top:auto;color:var(--t1);font-variant-numeric:tabular-nums;}
+.p-stock{font-size:12px;color:var(--t3);}
 .p-stock.low{color:var(--warn);}
 .p-stock.out{color:var(--danger);}
 
@@ -292,8 +292,9 @@ a{color:inherit;text-decoration:none;}
 @media(min-width:541px) and (max-width:1100px){
   .pos-right{width:248px;}
   .cart-footer{padding-bottom:16px!important;}
-  .product-grid{grid-template-columns:repeat(auto-fill,minmax(125px,1fr))!important;}
+  .product-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;}
 }
+@media(max-width:540px){.product-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;}}
 /* Phone only: hide cart panel, show FAB */
 @media(max-width:540px){.cart-fab{display:flex;} .pos-right{display:none;}}
 
@@ -744,6 +745,7 @@ async function recordSale(method,cashReceived,discountAmount=0,payDetails=null){
     brand_totals:JSON.stringify(bt),
     items_json:JSON.stringify(items.map(i=>({id:i.id,name:i.name,brand:i.brand,qty:i.qty,price:i.price})))
   });
+  try{S.popularity=S.popularity||{};items.forEach(i=>{const k=i.id!=null?'i:'+i.id:'n:'+i.name;S.popularity[k]=(S.popularity[k]||0)+(i.qty||0);});}catch(_){}
   for(const item of items){
     await db.sale_items.add({sale_id:saleId,product_id:item.id,product_name:item.name,brand:item.brand,quantity:item.qty,unit_price:item.price,subtotal:item.price*item.qty});
     if(item.track_stock&&item.stock<9999)
@@ -1078,7 +1080,24 @@ function renderAbrirCorte(){
 /* ══════════════════════════════════════════════
    POS
 ══════════════════════════════════════════════ */
+/* ── Más vendidos primero (últimos 30 días) ── */
+function _liloPopKey(p){return p.id!=null?'i:'+p.id:'n:'+(p.name||'');}
+async function _liloLoadPopularity(){
+  try{
+    const n=new Date();const from=new Date(n.getFullYear(),n.getMonth(),n.getDate()-29).getTime();
+    const sales=await db.sales.where('timestamp').between(from,Date.now()+60000,true,true).toArray();
+    const pop={};
+    sales.forEach(x=>{if(x.status==='cancelled')return;try{JSON.parse(x.items_json||'[]').forEach(i=>{const k=i.id!=null?'i:'+i.id:'n:'+i.name;pop[k]=(pop[k]||0)+(i.qty||0);});}catch(_){}});
+    S.popularity=pop;
+    if(S.user&&S.view==='pos'&&!S.modal){const grid=document.querySelector('.product-grid');if(grid&&!S.searchQuery)render(renderShell(renderPOS()));}
+  }catch(e){console.warn('popularidad',e);}
+}
+function _liloByPopularity(list){
+  const pop=S.popularity||{};
+  return list.map((p,i)=>({p,i,v:pop[_liloPopKey(p)]||pop['n:'+(p.name||'')]||0})).sort((a,b)=>(b.v-a.v)||(a.i-b.i)).map(x=>x.p);
+}
 function renderProductCards(list){
+  list=_liloByPopularity(list);
   return list.map(p=>{
     const low=p.track_stock&&p.stock>0&&p.stock<=5;
     const out=p.track_stock&&p.stock===0;
@@ -3259,11 +3278,13 @@ async function handleClick(e){
     case 'pin-back':
       S.loginUser=null;S.pinBuffer='';render(renderLogin());break;
     case 'switch-user':
+      _liloClearSession();
       if(window._liloUnsubs)window._liloUnsubs.forEach(u=>u());window._liloUnsubs=[];
       S.user=null;S.loginUser=null;S.pinBuffer='';S.cart=[];
       S.users=await db.users.toArray();
       render(renderLogin());break;
     case 'logout':
+      _liloClearSession();
       if(window._liloUnsubs)window._liloUnsubs.forEach(u=>u());window._liloUnsubs=[];
       S.user=null;S.shift=null;S.cart=[];S.loginUser=null;S.pinBuffer='';S.appliedDiscount=null;
       S.users=await db.users.toArray();
@@ -3893,6 +3914,15 @@ function scheduleMidnightCorte(){
   },ms);
 }
 
+/* ── Mantener sesión al minimizar / reabrir ── */
+const LILO_SESSION_KEY='lilo_session';
+const LILO_SESSION_MAX=12*3600000; // 12 horas sin usar la app
+function _liloSaveSession(){try{if(S.user)localStorage.setItem(LILO_SESSION_KEY,JSON.stringify({uid:S.user.id,view:S.view,t:Date.now()}));}catch(_){}}
+function _liloClearSession(){try{localStorage.removeItem(LILO_SESSION_KEY);}catch(_){}}
+function _liloReadSession(){try{const v=JSON.parse(localStorage.getItem(LILO_SESSION_KEY)||'null');if(v&&v.uid&&Date.now()-(v.t||0)<LILO_SESSION_MAX)return v;}catch(_){}return null;}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')_liloSaveSession();});
+window.addEventListener('pagehide',_liloSaveSession);
+
 async function doLogin(user){
   S.user=user;S.loginUser=null;S.pinBuffer='';
   S.products=await db.products.filter(p=>p.active===1).toArray();
@@ -3902,6 +3932,7 @@ async function doLogin(user){
   const open=await db.shifts.where('employee_id').equals(user.id).filter(s=>s.status==='open').toArray();
   S.shift=open.length>0?open[open.length-1]:null;
   setupRealtimeListeners();
+  _liloLoadPopularity();
   scheduleMidnightCorte(); // iniciar temporizador de corte automático
   if(S.shift||user.role==='owner'){
     S.view='pos';
@@ -3910,6 +3941,7 @@ async function doLogin(user){
     S.view='abrir-corte';
     render(renderShell(renderAbrirCorte()));
   }
+  _liloSaveSession();
 }
 
 async function getViewHtml(){
@@ -3932,6 +3964,7 @@ async function getViewHtml(){
 
 async function navigateTo(view){
   S.view=view;
+  if(S.user)_liloSaveSession();
   if(view!=='pos')S.searchQuery='';
   // close mobile sidebar before re-render
   document.querySelector('.sidebar-backdrop')?.classList.remove('mob-open');
@@ -4019,6 +4052,18 @@ function svgDonutChart(payTotals){
 async function init(){
   await seedIfEmpty();
   S.users=await db.users.toArray();
+  const sess=_liloReadSession();
+  const su=sess&&S.users.find(u=>String(u.id)===String(sess.uid));
+  if(su){
+    try{
+      await doLogin(su);
+      const okViews=['pos','mesas','dashboard','inventory','products','discounts','users','gastos','history','shift-close'];
+      const adminOnly=['dashboard','inventory','products','discounts','users','gastos','history'];
+      if(sess.view&&sess.view!==S.view&&okViews.includes(sess.view)&&(su.role==='owner'||!adminOnly.includes(sess.view))&&!(S.view==='abrir-corte'&&sess.view==='pos'))
+        await navigateTo(sess.view);
+      return;
+    }catch(e){console.warn('No se pudo restaurar la sesión',e);_liloClearSession();}
+  }
   render(renderLogin());
   _liloAutoCloseStale();
   scheduleMidnightCorte();
