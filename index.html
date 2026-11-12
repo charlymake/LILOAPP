@@ -792,12 +792,15 @@ async function _liloAutoCloseStale(){
 async function closeShift(){
   if(!S.shift)return null;
   await db.shifts.where('id').equals(S.shift.id).modify({end_time:Date.now(),status:'closed',cash_close:S.cashClose||0});
-  const sales=await db.sales.where('shift_id').equals(S.shift.id).toArray();
+  const allShiftSales=await db.sales.where('shift_id').equals(S.shift.id).toArray();
+  const sales=allShiftSales.filter(x=>x.status!=='cancelled'); // no contar canceladas
   const total=sales.reduce((s,x)=>s+(x.total||0),0);
   const bt={amor_azucar:0,crepa_roll:0,lilo:0};
   const pt={cash:0,card:0,transfer:0};
   sales.forEach(s=>{
     try{const b=JSON.parse(s.brand_totals||'{}');Object.keys(b).forEach(k=>{bt[k]=(bt[k]||0)+b[k];});}catch(_){}
+    // pagos mixtos: repartir entre sus métodos
+    if(s.payment_details){try{const pd=JSON.parse(s.payment_details);Object.keys(pd).forEach(k=>{pt[k]=(pt[k]||0)+(pd[k]||0);});return;}catch(_){}}
     pt[s.payment_method]=(pt[s.payment_method]||0)+(s.total||0);
   });
   const fondo=S.shift.fondo_caja||0;
@@ -3248,8 +3251,9 @@ async function _liloRecalcShift(shiftId){
       if(s.payment_details){try{const pd=JSON.parse(s.payment_details);Object.keys(pd).forEach(k=>{pt[k]=(pt[k]||0)+pd[k];});}catch(_){}}
       else{pt[s.payment_method]=(pt[s.payment_method]||0)+(s.total||0);}
     });
-    const newExpected=(shift.fondo_caja||0)+pt.cash;
-    await db.shifts.where('id').equals(shiftId).modify({cash_close:newExpected});
+    // Ya no se sobrescribe cash_close: lo que declaró el cajero se conserva.
+    // El efectivo esperado se calcula en vivo (excluyendo canceladas) en Historial y Cierre.
+    void pt;
   }catch(_){}
 }
 
