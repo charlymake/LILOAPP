@@ -826,7 +826,15 @@ async function loadDashboardData(){
   const total=allSales.reduce((s,x)=>s+(x.total||0),0);
   const bt={amor_azucar:0,crepa_roll:0,lilo:0};
   const pt={cash:0,card:0,transfer:0};
+  const bp={}; // marca × forma de pago
   allSales.forEach(s=>{
+    try{
+      const b=JSON.parse(s.brand_totals||'{}');const bsum=Object.values(b).reduce((a,v)=>a+(v||0),0)||0;
+      let split={};
+      if(s.payment_details){try{const pd=JSON.parse(s.payment_details);const ps=Object.values(pd).reduce((a,v)=>a+(v||0),0)||1;Object.keys(pd).forEach(m=>split[m]=(pd[m]||0)/ps);}catch(_){}}
+      if(!Object.keys(split).length)split[s.payment_method]=1;
+      if(bsum>0)Object.keys(b).forEach(k=>{const share=(b[k]||0)/bsum*(s.total||0);bp[k]=bp[k]||{cash:0,card:0,transfer:0};Object.keys(split).forEach(m=>{bp[k][m]=(bp[k][m]||0)+share*split[m];});});
+    }catch(_){}
     try{const b=JSON.parse(s.brand_totals||'{}');Object.keys(b).forEach(k=>{bt[k]=(bt[k]||0)+b[k];});}catch(_){}
     if(s.payment_details){try{const pd=JSON.parse(s.payment_details);Object.keys(pd).forEach(k=>{pt[k]=(pt[k]||0)+pd[k];});}catch(_){}}
     else{pt[s.payment_method]=(pt[s.payment_method]||0)+(s.total||0);}
@@ -894,7 +902,7 @@ async function loadDashboardData(){
   let mesasAll=[];try{mesasAll=await db.mesas.toArray();}catch(_){}
   const mesasClosed=mesasAll.filter(m=>m.status==='cerrada'&&m.abierta_at&&m.cerrada_at&&m.cerrada_at>=from&&m.cerrada_at<=to&&m.cerrada_at>m.abierta_at);
   const mesasOpen=mesasAll.filter(m=>m.status==='abierta'&&m.abierta_at);
-    return{mesas:{closed:mesasClosed,open:mesasOpen},total,brandTotals:bt,payTotals:pt,chart:{labels,aa,cr,li},topProducts:top,salesCount:allSales.length,cancelledCount:rawSales.length-allSales.length,sales:recentRaw};
+    return{brandPay:bp,mesas:{closed:mesasClosed,open:mesasOpen},total,brandTotals:bt,payTotals:pt,chart:{labels,aa,cr,li},topProducts:top,salesCount:allSales.length,cancelledCount:rawSales.length-allSales.length,sales:recentRaw};
 }
 
 /* ══════════════════════════════════════════════
@@ -1706,6 +1714,7 @@ function renderDashboard(){
           <div class="stat-sub">${d.total>0?Math.round((d.brandTotals[b]||0)/d.total*100)+'% del total':'—'} <span style="font-size:10px;color:${bv.hex};opacity:.7;">▶ ver</span></div>
         </div>`).join('')}
     </div>
+    ${renderBrandPay(d)}
     <div class="charts-grid">
       <div class="chart-card">
         <div class="chart-title">Ventas por marca ${(S.dateRange==='today'||(S.dateRange==='custom'&&S.customFrom&&S.customFrom===S.customTo))?'(por hora)':'(por día)'} ${S.dateRange==='custom'&&S.customFrom?`· ${S.customFrom}${S.customTo&&S.customTo!==S.customFrom?' → '+S.customTo:''}`:''}</div>
@@ -3130,6 +3139,33 @@ window._liloVerMetodo=async function(method){
       </div>
     </div>`);
 };
+
+/* ── Ventas por marca y forma de pago ── */
+function renderBrandPay(d){
+  const bp=d&&d.brandPay;if(!bp)return'';
+  const ms=['cash','card','transfer'];
+  const tot={cash:0,card:0,transfer:0};
+  const cards=Object.entries(BRANDS).map(([k,bv])=>{
+    const v=bp[k]||{cash:0,card:0,transfer:0};const t=ms.reduce((a,m)=>a+(v[m]||0),0);
+    ms.forEach(m=>tot[m]+=v[m]||0);
+    const bar=t>0?ms.filter(m=>v[m]>0).map(m=>`<div style="width:${(v[m]/t*100).toFixed(1)}%;background:${PAY_COLOR[m]};"></div>`).join(''):'';
+    const rows=ms.map(m=>{const pct=t>0?Math.round((v[m]||0)/t*100):0;return`<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border);opacity:${v[m]>0.005?1:.45};">
+      <span style="font-size:15px;flex-shrink:0;">${PAY[m].icon}</span><span style="flex:1;min-width:0;font-size:12px;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${PAY[m].name}</span>
+      <span style="font-size:14px;font-weight:700;color:var(--t1);white-space:nowrap;">${fmt(v[m]||0)}</span>
+      <span style="width:38px;flex-shrink:0;text-align:right;font-size:14px;font-weight:800;color:${PAY_COLOR[m]};">${pct}%</span></div>`;}).join('');
+    return`<div style="flex:1;min-width:200px;background:var(--s2);border-radius:14px;padding:12px;border-top:4px solid ${bv.hex};">
+      <div style="font-size:13px;font-weight:700;color:${bv.hex};letter-spacing:.04em;text-transform:uppercase;">${bv.icon} ${bv.name}</div>
+      <div style="font-size:24px;font-weight:800;color:var(--t1);margin:4px 0 8px;">${fmt(t)}</div>
+      <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px;margin-bottom:8px;background:var(--s3);">${bar}</div>${rows}</div>`;
+  }).join('');
+  const T=ms.reduce((a,m)=>a+tot[m],0);
+  const foot=ms.map(m=>`<div style="flex:1;text-align:center;"><div style="font-size:12px;color:var(--t2);">${PAY[m].icon} ${PAY[m].name}</div><div style="font-size:18px;font-weight:800;color:${PAY_COLOR[m]};">${fmt(tot[m])}</div></div>`).join('');
+  return`<div class="recent-card" style="margin-bottom:16px;padding:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;"><div style="font-size:16px;font-weight:700;color:var(--t1);">Ventas por marca y forma de pago</div><div style="font-size:13px;color:var(--t2);">Total general <b style="font-size:18px;color:var(--t1);">${fmt(T)}</b></div></div>
+    <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;">${cards}</div>
+    <div style="display:flex;gap:10px;margin-top:14px;background:var(--s2);border-radius:12px;padding:12px;">${foot}</div>
+  </div>`;
+}
 
 /* ── Top Productos (ranking) ── */
 function renderTopProducts(d){
