@@ -2121,6 +2121,10 @@ async function renderHistoryDays(){
   if(S.historyDate){from=new Date(S.historyDate+'T00:00:00').getTime();to=from+86400000;}
   else{const st=new Date(_n.getFullYear(),_n.getMonth(),_n.getDate()-29);from=st.getTime();to=Date.now()+86400000;}
   const all=await db.sales.where('timestamp').between(from,to,true,false).toArray();
+  // Fondo de caja de los cortes abiertos cada día
+  const fondoDia={};
+  // Se toma el fondo del PRIMER corte del día (si hubo varios, el dinero del fondo es el mismo que pasa de uno a otro)
+  try{const first={};(await db.shifts.toArray()).forEach(sh=>{if(!sh.start_time||sh.start_time<from||sh.start_time>=to)return;const k=_liloDayKey(sh.start_time);if(!first[k]||sh.start_time<first[k].start_time)first[k]=sh;});Object.keys(first).forEach(k=>fondoDia[k]=first[k].fondo_caja||0);}catch(_){}
   const groups={};
   all.forEach(sv=>{const k=_liloDayKey(sv.timestamp);(groups[k]=groups[k]||[]).push(sv);});
   const keys=Object.keys(groups).sort().reverse();
@@ -2174,7 +2178,7 @@ async function renderHistoryDays(){
               <div class="breakdown-amount">${fmt(bt[b]||0)}</div>
             </div>`).join('')}
         </div>
-        <div style="margin-bottom:12px;">${_liloPayPanel('day-'+k,sales,pt,payF,null)}</div>
+        <div style="margin-bottom:12px;">${_liloPayPanel('day-'+k,sales,pt,payF,fondoDia[k]!=null?fondoDia[k]:null)}</div>
         ${isAdmin?`<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button onclick="window._liloAskDeleteDay('${k}',event)" style="background:transparent;border:1.5px solid var(--danger);color:var(--danger);border-radius:var(--rxs);padding:6px 12px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">🗑 Eliminar ventas de este día</button></div>`:''}
         <div style="border-top:1px solid var(--border);padding-top:10px;">
           ${list.length===0?`<div style="text-align:center;padding:14px 0;color:var(--t3);font-size:13px;">Sin ventas con ${PAY[payF]?.name||payF} este día</div>`:''}
@@ -3304,7 +3308,7 @@ function _liloPayPanel(key,sales,pt,payF,fondo){
     const col=PAY_COLOR[payF];const n=cnt(payF);
     summary=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px;">
       <div style="font-size:13px;font-weight:700;color:${col};">${PAY[payF].icon} ${n} venta${n!==1?'s':''} ${payF==='cash'?'en':'con'} ${PAY[payF].name.toLowerCase()} · ${fmt(pt[payF]||0)}</div>
-      ${payF==='cash'?`<div style="font-size:12px;color:var(--t2);">💰 Debe haber en caja: <b style="color:var(--t1);">${fondo!=null?fmt((pt.cash||0)+fondo):fmt(pt.cash||0)+'</b> + fondo<b>'}</b>${fondo!=null&&fondo>0?` <span style="color:var(--t3);">(incluye fondo ${fmt(fondo)})</span>`:''}</div>`:''}
+      ${payF==='cash'?`<div style="font-size:12px;color:var(--t2);">💰 Debe haber en caja: ${fondo!=null?`${fmt(pt.cash||0)} + ${fmt(fondo)} de fondo = <b style="color:var(--t1);font-size:14px;">${fmt((pt.cash||0)+fondo)}</b>`:`<b style="color:var(--t1);">${fmt(pt.cash||0)}</b> <span style="color:var(--t3);">(sin corte registrado ese día)</span>`}</div>`:''}
     </div>`;
   }
   return`<div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--t3);margin-bottom:12px;">¿CÓMO PAGARON? <span style="font-weight:400;letter-spacing:0;">· toca uno para ver solo esas ventas</span></div>
