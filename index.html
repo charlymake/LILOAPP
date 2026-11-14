@@ -1791,12 +1791,17 @@ window._liloGasto=async function(){
         </div>
         <div style="font-size:13px;color:var(--t2);margin:14px 0 6px;">¿En qué se gastó?</div>
         <textarea id="gasto-nota" rows="2" placeholder="Ej. 2 bolsas de hielo" style="width:100%;box-sizing:border-box;background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:15px;color:var(--t1);font-family:var(--font);resize:none;outline:none;"></textarea>
+        <div style="font-size:13px;color:var(--t2);margin:14px 0 6px;">¿Quién gastó?</div>
+        <input type="hidden" id="gasto-marca" value="">
+        <div style="display:flex;gap:8px;">
+          ${Object.entries(BRANDS).map(([k,bv])=>`<button type="button" class="gasto-marca-btn" data-marca="${k}" data-col="${bv.hex}" onclick="window._liloGastoMarca('${k}')" style="flex:1;padding:12px 6px;border-radius:12px;border:2px solid var(--border);background:var(--s2);color:var(--t1);font-size:13px;font-weight:700;font-family:var(--font);cursor:pointer;">${bv.icon}<br>${bv.name}</button>`).join('')}
+        </div>
         <div id="gasto-err" style="color:var(--danger);font-size:13px;margin-top:8px;display:none;"></div>
         <button id="gasto-ok" onclick="window._liloGuardarGasto()" style="width:100%;margin-top:14px;background:${GASTO_COL};color:#fff;border:none;border-radius:12px;padding:14px;font-size:16px;font-weight:700;font-family:var(--font);cursor:pointer;">Guardar gasto</button>
         <div style="font-size:12px;font-weight:700;letter-spacing:.07em;color:var(--t3);margin:18px 0 8px;">GASTOS DE HOY · ${fmt(tot)}</div>
         ${hoy.length===0?`<div style="font-size:13px;color:var(--t3);padding:6px 0;">Todavía no hay gastos hoy</div>`:hoy.map(g=>`
           <div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);font-size:14px;color:var(--t1);">
-            <span><span style="color:var(--t3);font-size:12px;">${fmtTime(g.timestamp)}</span>&nbsp; ${esc(g.nota||'—')}</span><b style="white-space:nowrap;">${fmt(g.monto||0)}</b></div>`).join('')}
+            <span><span style="color:var(--t3);font-size:12px;">${fmtTime(g.timestamp)}</span>&nbsp; ${esc(g.nota||'—')}${_liloMarcaChip(g.marca)}</span><b style="white-space:nowrap;">${fmt(g.monto||0)}</b></div>`).join('')}
       </div>
     </div>`);
   setTimeout(()=>document.getElementById('gasto-monto')?.focus(),50);
@@ -1808,9 +1813,11 @@ window._liloGuardarGasto=async function(){
   const showErr=t=>{if(err){err.textContent=t;err.style.display='block';}};
   if(monto<=0)return showErr('Escribe cuánto fue el gasto.');
   if(!nota)return showErr('Escribe en qué se gastó.');
+  const marca=document.getElementById('gasto-marca')?.value||'';
+  if(!marca)return showErr('Elige quién gastó: Amor Azúcar, Crepa Roll o LILO.');
   const btn=document.getElementById('gasto-ok');if(btn){btn.disabled=true;btn.textContent='Guardando…';}
   try{
-    await db.gastos.add({monto,nota,timestamp:Date.now(),employee_id:S.user?.id||null,employee_name:S.user?.name||'',shift_id:S.shift?.id||null});
+    await db.gastos.add({monto,nota,marca,timestamp:Date.now(),employee_id:S.user?.id||null,employee_name:S.user?.name||'',shift_id:S.shift?.id||null});
     await window._liloGasto();
   }catch(e){
     console.error('Error guardando gasto',e);
@@ -1818,6 +1825,12 @@ window._liloGuardarGasto=async function(){
     showErr('No se pudo guardar el gasto. Revisa la conexión e intenta de nuevo.');
   }
 };
+window._liloGastoMarca=function(k){
+  const inp=document.getElementById('gasto-marca');if(inp)inp.value=k;
+  document.querySelectorAll('.gasto-marca-btn').forEach(b=>{const on=b.dataset.marca===k,c=b.dataset.col;b.style.borderColor=on?c:'var(--border)';b.style.background=on?c+'33':'var(--s2)';b.style.color=on?c:'var(--t1)';});
+  const err=document.getElementById('gasto-err');if(err)err.style.display='none';
+};
+function _liloMarcaChip(k){const bv=BRANDS[k];if(!bv)return'';return ` <span style="font-size:11px;font-weight:700;color:${bv.hex};background:${bv.hex}22;border-radius:10px;padding:2px 8px;white-space:nowrap;">${bv.icon} ${bv.name}</span>`;}
 window._liloGastosRange=async function(r){S.gastosRange=r;S.gastosDate='';await navigateTo('gastos');};
 window._liloGastosDate=async function(){S.gastosDate=document.getElementById('gastos-date')?.value||'';if(S.gastosDate)S.gastosRange='day';await navigateTo('gastos');};
 window._liloBorrarGasto=async function(id){
@@ -1852,6 +1865,10 @@ async function renderGastos(){
     <div style="flex:1;min-width:180px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;"><div style="font-size:12px;color:var(--t2);">Total gastado</div><div style="font-size:28px;font-weight:800;color:${GASTO_COL};">${fmt(tot)}</div></div>
     <div style="flex:1;min-width:140px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;"><div style="font-size:12px;color:var(--t2);">Gastos</div><div style="font-size:28px;font-weight:800;color:var(--t1);">${list.length}</div></div>
     <div style="flex:1;min-width:140px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:16px;"><div style="font-size:12px;color:var(--t2);">Promedio por gasto</div><div style="font-size:28px;font-weight:800;color:var(--t1);">${fmt(list.length?tot/list.length:0)}</div></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+    ${Object.entries(BRANDS).map(([k,bv])=>{const t=list.filter(g=>g.marca===k).reduce((a,g)=>a+(g.monto||0),0);const n=list.filter(g=>g.marca===k).length;return`<div style="flex:1;min-width:160px;background:var(--surface);border:1.5px solid var(--border);border-top:4px solid ${bv.hex};border-radius:var(--r);padding:12px 16px;"><div style="font-size:12px;font-weight:700;color:${bv.hex};text-transform:uppercase;">${bv.icon} ${bv.name}</div><div style="font-size:22px;font-weight:800;color:var(--t1);">${fmt(t)}</div><div style="font-size:11px;color:var(--t2);">${n} gasto${n!==1?'s':''}</div></div>`;}).join('')}
+    ${list.some(g=>!BRANDS[g.marca])?`<div style="flex:1;min-width:160px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);padding:12px 16px;"><div style="font-size:12px;font-weight:700;color:var(--t3);">SIN MARCA</div><div style="font-size:22px;font-weight:800;color:var(--t1);">${fmt(list.filter(g=>!BRANDS[g.marca]).reduce((a,g)=>a+(g.monto||0),0))}</div><div style="font-size:11px;color:var(--t2);">registrados antes de este cambio</div></div>`:''}
   </div>`;
   const body=list.length===0?`<div class="empty-state" style="margin-top:24px;"><div class="empty-icon">🧾</div><div class="empty-text">Sin gastos en este período</div></div>`
     :Object.keys(groups).sort().reverse().map(k=>{
@@ -1861,7 +1878,7 @@ async function renderGastos(){
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;"><span style="font-size:15px;font-weight:700;color:var(--t1);text-transform:capitalize;">${dn}${k===todayStr?' · Hoy':''}</span><span style="font-size:16px;font-weight:800;color:${GASTO_COL};">${fmt(st)}</span></div>
         ${g.map(x=>`<div style="display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid var(--border);">
           <span style="font-size:13px;color:var(--t3);width:44px;flex-shrink:0;">${fmtTime(x.timestamp)}</span>
-          <span style="flex:1;font-size:14px;color:var(--t1);">${esc(x.nota||'—')}<span style="font-size:12px;color:var(--t2);"> · ${esc(x.employee_name||'—')}</span></span>
+          <span style="flex:1;font-size:14px;color:var(--t1);">${esc(x.nota||'—')}${_liloMarcaChip(x.marca)}<span style="font-size:12px;color:var(--t2);"> · ${esc(x.employee_name||'—')}</span></span>
           <span style="font-size:15px;font-weight:700;color:var(--t1);white-space:nowrap;">${fmt(x.monto||0)}</span>
           <button onclick="window._liloBorrarGasto('${x.id}')" style="font-size:12px;color:var(--danger);border:1px solid var(--danger);background:transparent;border-radius:6px;padding:4px 9px;font-family:var(--font);cursor:pointer;">Eliminar</button>
         </div>`).join('')}
