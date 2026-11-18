@@ -1047,6 +1047,7 @@ function renderLogin(){
   </div>`;
 }
 
+function _liloSinPin(u){return (u?.name||'').trim().toLowerCase()==='operaciones';}
 function _liloIsSistema(u){return (u?.name||'').trim().toLowerCase()==='sistema';}
 function renderUserSelect(){
   return`
@@ -3394,6 +3395,8 @@ async function handleClick(e){
     case 'select-user':{
       const u=S.users.find(x=>x.id==id);
       if(!u)return;
+      // Perfiles que entran sin PIN
+      if(_liloSinPin(u)){S.loginUser=null;S.pinBuffer='';await doLogin(u);break;}
       S.loginUser=u;S.pinBuffer='';
       render(renderLogin());
       break;
