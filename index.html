@@ -771,6 +771,11 @@ async function recordSale(method,cashReceived,discountAmount=0,payDetails=null){
 
 function _liloLockPayButtons(){document.querySelectorAll('[data-action="confirm-sale"],[data-action="confirmar-cobrar-mesa"]').forEach(b=>{b.disabled=true;b.style.opacity='.6';});}
 function _liloUnlockPayButtons(){document.querySelectorAll('[data-action="confirm-sale"],[data-action="confirmar-cobrar-mesa"]').forEach(b=>{b.disabled=false;b.style.opacity='';});}
+/* Gastos registrados entre dos momentos (se descuentan del efectivo en caja) */
+async function _liloGastosEntre(from,to){
+  try{return (await db.gastos.toArray()).filter(g=>g.timestamp>=from&&g.timestamp<to).reduce((a,g)=>a+(g.monto||0),0);}catch(_){return 0;}
+}
+function _liloGastosRango(all,from,to){return (all||[]).filter(g=>g.timestamp>=from&&g.timestamp<to).reduce((a,g)=>a+(g.monto||0),0);}
 function _liloNeedCorte(){
   _liloOverlay('lilo-need-corte',`<div style="background:var(--surface);border-radius:16px;padding:24px;max-width:360px;width:100%;text-align:center;border:1px solid var(--border);">
     <div style="font-size:36px;">🔒</div>
@@ -818,9 +823,10 @@ async function closeShift(){
     pt[s.payment_method]=(pt[s.payment_method]||0)+(s.total||0);
   });
   const fondo=S.shift.fondo_caja||0;
-  const cashInRegister=fondo+pt.cash;
+  const gastos=await _liloGastosEntre(S.shift.start_time||0,Date.now()+1000);
+  const cashInRegister=fondo+pt.cash-gastos;
   S.shift=null;
-  return{total,count:sales.length,brandTotals:bt,payTotals:pt,fondo,cashInRegister};
+  return{total,count:sales.length,brandTotals:bt,payTotals:pt,fondo,gastos,cashInRegister};
 }
 
 async function loadDashboardData(){
@@ -2140,6 +2146,7 @@ async function renderHistoryDays(){
   const all=await db.sales.where('timestamp').between(from,to,true,false).toArray();
   // Fondo de caja de los cortes abiertos cada día
   const fondoDia={};
+  let gastosAllD=[];try{gastosAllD=await db.gastos.toArray();}catch(_){}
   // Se toma el fondo del PRIMER corte del día (si hubo varios, el dinero del fondo es el mismo que pasa de uno a otro)
   try{const first={};(await db.shifts.toArray()).forEach(sh=>{if(!sh.start_time||sh.start_time<from||sh.start_time>=to)return;const k=_liloDayKey(sh.start_time);if(!first[k]||sh.start_time<first[k].start_time)first[k]=sh;});Object.keys(first).forEach(k=>fondoDia[k]=first[k].fondo_caja||0);}catch(_){}
   const groups={};
@@ -2195,7 +2202,7 @@ async function renderHistoryDays(){
               <div class="breakdown-amount">${fmt(bt[b]||0)}</div>
             </div>`).join('')}
         </div>
-        <div style="margin-bottom:12px;">${_liloPayPanel('day-'+k,sales,pt,payF,fondoDia[k]!=null?fondoDia[k]:null)}</div>
+        <div style="margin-bottom:12px;">${_liloPayPanel('day-'+k,sales,pt,payF,fondoDia[k]!=null?fondoDia[k]:null,_liloGastosRango(gastosAllD,new Date(k+'T00:00:00').getTime(),new Date(k+'T00:00:00').getTime()+86400000))}</div>
         ${isAdmin?`<div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button onclick="window._liloAskDeleteDay('${k}',event)" style="background:transparent;border:1.5px solid var(--danger);color:var(--danger);border-radius:var(--rxs);padding:6px 12px;font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">🗑 Eliminar ventas de este día</button></div>`:''}
         <div style="border-top:1px solid var(--border);padding-top:10px;">
           ${list.length===0?`<div style="text-align:center;padding:14px 0;color:var(--t3);font-size:13px;">Sin ventas con ${PAY[payF]?.name||payF} este día</div>`:''}
@@ -2220,6 +2227,7 @@ async function renderHistoryDays(){
 
 async function renderHistory(){
   if((S.historyMode||'day')==='day')return renderHistoryDays();
+  let gastosAll=[];try{gastosAll=await db.gastos.toArray();}catch(_){}
   let allShifts=[];
   const filteredSalesMap={};
   const hasDateFilter=!!S.historyDate;
@@ -2265,7 +2273,8 @@ async function renderHistory(){
     const isAdmin=S.user?.role==='owner';
     const payF=(S.histPayFilter&&S.histPayFilter.shift===sh.id)?S.histPayFilter.method:null;
     const listSales=payF?allShiftSales.filter(sv=>_liloSaleHasMethod(sv,payF)):allShiftSales;
-    const cashExpected=(sh.fondo_caja||0)+pt.cash;
+    const gastosSh=_liloGastosRango(gastosAll,sh.start_time||0,sh.end_time||Date.now()+1000);
+    const cashExpected=(sh.fondo_caja||0)+pt.cash-gastosSh;
     const diff=sh.cash_close!=null?(sh.cash_close||0)-cashExpected:null;
     const reconcileHtml=!hasDateFilter&&sh.status==='closed'&&sh.cash_close!=null&&diff!=null?
       Math.abs(diff)<0.01
@@ -2294,6 +2303,7 @@ async function renderHistory(){
           <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ok);margin-bottom:6px;">💰 Debe tener en caja</div>
           <div class="info-row"><span class="info-label">Fondo inicial</span><span class="info-val">${fmt(sh.fondo_caja||0)}</span></div>
           <div class="info-row"><span class="info-label">Efectivo en ventas</span><span class="info-val">${fmt(pt.cash)}</span></div>
+          ${gastosSh>0?`<div class="info-row"><span class="info-label">Gastos del día</span><span class="info-val" style="color:var(--danger);">− ${fmt(gastosSh)}</span></div>`:''}
           <div class="info-row" style="margin-top:4px;"><span class="info-label" style="font-weight:700;color:var(--ok);">Total esperado</span><span class="info-val" style="font-weight:700;color:var(--ok);font-size:16px;">${fmt(cashExpected)}</span></div>
           ${sh.cash_close!=null?`<div class="info-row" style="margin-top:4px;">
             <span class="info-label">Declaró al cerrar</span>
@@ -2307,7 +2317,7 @@ async function renderHistory(){
               <div class="breakdown-amount">${fmt(bt[b])}</div>
             </div>`).join('')}
         </div>
-        <div style="margin-bottom:12px;">${_liloPayPanel(sh.id,sales,pt,payF,sh.fondo_caja||0)}</div>
+        <div style="margin-bottom:12px;">${_liloPayPanel(sh.id,sales,pt,payF,sh.fondo_caja||0,gastosSh)}</div>
         ${isAdmin&&allShiftSales.length>0?`
         <div style="border-top:1px solid var(--border);padding-top:10px;">
           <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--t3);margin-bottom:8px;">Ventas del turno${cancelledSales.length>0?` <span style="color:var(--danger);font-weight:400;">(${cancelledSales.length} cancelada${cancelledSales.length!==1?'s':''})</span>`:''}</div>
@@ -2351,7 +2361,8 @@ async function renderShiftClose(){
   });
   const isAdmin=S.user?.role==='owner';
   const fondo=S.shift.fondo_caja||0;
-  const cashInReg=fondo+pt.cash;
+  const gastosT=await _liloGastosEntre(S.shift.start_time||0,Date.now()+1000);
+  const cashInReg=fondo+pt.cash-gastosT;
   return`
   <div class="view" style="max-width:520px;margin:0 auto;">
     <div class="section-title" style="margin-bottom:20px;">Cierre de Turno</div>
@@ -2362,6 +2373,7 @@ async function renderShiftClose(){
       ${isAdmin?`
       <div style="border-top:1px solid var(--border);margin:10px 0;padding-top:10px;">
         <div class="info-row"><span class="info-label">Fondo de caja</span><span class="info-val">${fmt(fondo)}</span></div>
+        ${gastosT>0?`<div class="info-row"><span class="info-label">Gastos del día</span><span class="info-val" style="color:var(--danger);">− ${fmt(gastosT)}</span></div>`:''}
         <div class="info-row"><span class="info-label">Total del turno</span><span class="info-val" style="font-size:20px;font-family:var(--serif);">${fmt(total)}</span></div>
         <div class="info-row" style="background:var(--ok-bg);border-radius:var(--rxs);padding:6px 8px;margin-top:6px;">
           <span class="info-label" style="color:var(--ok);font-weight:600;">💰 Efectivo en caja</span>
@@ -2987,6 +2999,7 @@ function renderShiftDoneModal(){
         ${isAdmin?`
         <div style="border-top:1px solid var(--border);margin:10px 0;padding-top:10px;">
           <div class="info-row"><span class="info-label">Fondo de caja</span><span class="info-val">${fmt(s.fondo||0)}</span></div>
+          ${(s.gastos||0)>0?`<div class="info-row"><span class="info-label">Gastos del día</span><span class="info-val" style="color:var(--danger);">− ${fmt(s.gastos)}</span></div>`:''}
           <div class="info-row"><span class="info-label">Total ventas del día</span><span class="info-val" style="font-size:18px;font-family:var(--serif);">${fmt(s.total)}</span></div>
           <div class="info-row" style="background:var(--s2);border-radius:var(--rxs);padding:6px 8px;margin:4px 0;">
             <span class="info-label" style="font-weight:600;">📊 Esperado en caja</span>
@@ -3302,7 +3315,8 @@ function _liloSaleHasMethod(s,method){
   return false;
 }
 window._liloHistShowAll=async function(k,evt){if(evt){evt.preventDefault();evt.stopPropagation();}S.histShowAll=S.histShowAll===k?null:k;await navigateTo('history');};
-function _liloPayPanel(key,sales,pt,payF,fondo){
+function _liloPayPanel(key,sales,pt,payF,fondo,gastos){
+  gastos=gastos||0;
   const tot=Object.values(pt).reduce((a,b)=>a+(b||0),0);
   const cnt=m=>sales.filter(x=>_liloSaleHasMethod(x,m)).length;
   const card=(m,ic,name,v,n,col)=>{
@@ -3325,7 +3339,7 @@ function _liloPayPanel(key,sales,pt,payF,fondo){
     const col=PAY_COLOR[payF];const n=cnt(payF);
     summary=`<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px;">
       <div style="font-size:13px;font-weight:700;color:${col};">${PAY[payF].icon} ${n} venta${n!==1?'s':''} ${payF==='cash'?'en':'con'} ${PAY[payF].name.toLowerCase()} · ${fmt(pt[payF]||0)}</div>
-      ${payF==='cash'?`<div style="font-size:12px;color:var(--t2);">💰 Debe haber en caja: ${fondo!=null?`${fmt(pt.cash||0)} + ${fmt(fondo)} de fondo = <b style="color:var(--t1);font-size:14px;">${fmt((pt.cash||0)+fondo)}</b>`:`<b style="color:var(--t1);">${fmt(pt.cash||0)}</b> <span style="color:var(--t3);">(sin corte registrado ese día)</span>`}</div>`:''}
+      ${payF==='cash'?`<div style="font-size:12px;color:var(--t2);">💰 Debe haber en caja: ${fmt(pt.cash||0)}${fondo!=null?` + ${fmt(fondo)} de fondo`:''}${gastos>0?` <span style="color:var(--danger);">− ${fmt(gastos)} de gastos</span>`:''} = <b style="color:var(--t1);font-size:14px;">${fmt((pt.cash||0)+(fondo||0)-gastos)}</b>${fondo==null?` <span style="color:var(--t3);">(sin corte registrado ese día)</span>`:''}</div>`:''}
     </div>`;
   }
   return`<div style="font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--t3);margin-bottom:12px;">¿CÓMO PAGARON? <span style="font-weight:400;letter-spacing:0;">· toca uno para ver solo esas ventas</span></div>
